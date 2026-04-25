@@ -12,3 +12,5 @@ app/build/
 *.jks
 *.keystore
 .vscode/
+github-secrets.txt
+*.keystore
