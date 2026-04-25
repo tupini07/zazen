@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.IBinder
@@ -66,6 +67,7 @@ class TimerService : Service() {
         private const val TICK_INTERVAL_MS = 250L
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "zazen_timer"
+        private const val DND_PREFS = "zazen_dnd"
 
         private val _timerState = MutableStateFlow<TimerState>(TimerState.Idle)
         val timerState: StateFlow<TimerState> = _timerState.asStateFlow()
@@ -102,6 +104,7 @@ class TimerService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(tickRunnable)
+        restoreDnd()
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -116,9 +119,11 @@ class TimerService : Service() {
         accumulatedPauseMillis = 0
         startedAtRealtime = SystemClock.elapsedRealtime()
 
-        // Preload all bell sounds
+        // Preload all bell sounds + the end sound
         bells.forEach { soundPlayer.preload(it.soundResId) }
-        soundPlayer.preload(R.raw.bell) // completion bell
+        soundPlayer.preload(config.endSoundResId)
+
+        if (config.dndEnabled) enableDnd()
 
         startForeground(NOTIFICATION_ID, buildNotification(totalDurationMillis))
         handler.post(tickRunnable)
@@ -147,11 +152,11 @@ class TimerService : Service() {
         val elapsed = computeElapsedMillis()
         _timerState.value = TimerState.Idle
         currentConfig = null
-        // Save session then clean up service
         serviceScope.launch {
             withContext(NonCancellable) {
                 saveSession(elapsed, completed = false)
             }
+            restoreDnd()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
@@ -160,12 +165,13 @@ class TimerService : Service() {
     private fun tick() {
         val elapsed = computeElapsedMillis()
         val remaining = (totalDurationMillis - elapsed).coerceAtLeast(0)
+        val volume = currentConfig?.bellVolume ?: 1f
 
         // Fire any bells whose trigger time has passed
         while (nextBellIndex < bells.size && bells[nextBellIndex].triggerAtMillis <= elapsed) {
             val bell = bells[nextBellIndex]
             val useVibrate = bell.vibrateOnly || (currentConfig?.vibrateOnly == true)
-            if (useVibrate) soundPlayer.vibrate() else soundPlayer.play(bell.soundResId)
+            if (useVibrate) soundPlayer.vibrate() else soundPlayer.play(bell.soundResId, volume)
             nextBellIndex++
         }
 
@@ -179,20 +185,20 @@ class TimerService : Service() {
 
     private fun onTimerFinished() {
         handler.removeCallbacks(tickRunnable)
+        val config = currentConfig
 
-        if (currentConfig?.vibrateOnly == true) {
+        if (config?.vibrateOnly == true) {
             soundPlayer.vibrate(durationMs = 1000)
         } else {
-            soundPlayer.play(R.raw.bell)
+            soundPlayer.play(config?.endSoundResId ?: R.raw.bell, config?.bellVolume ?: 1f)
         }
 
         _timerState.value = TimerState.Finished
-        // Save session before stopping service — use NonCancellable so
-        // stopSelf/onDestroy can't cancel the DB write
         serviceScope.launch {
             withContext(NonCancellable) {
                 saveSession(totalDurationMillis, completed = true)
             }
+            restoreDnd()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
@@ -213,6 +219,30 @@ class TimerService : Service() {
                 completed = completed,
             )
         )
+    }
+
+    // --- Do Not Disturb ---
+
+    private fun enableDnd() {
+        val nm = getSystemService(NotificationManager::class.java)
+        if (!nm.isNotificationPolicyAccessGranted) return
+        val previousFilter = nm.currentInterruptionFilter
+        getSharedPreferences(DND_PREFS, Context.MODE_PRIVATE).edit()
+            .putInt("prev_filter", previousFilter)
+            .putBoolean("dnd_active", true)
+            .apply()
+        nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALARMS)
+    }
+
+    private fun restoreDnd() {
+        val prefs = getSharedPreferences(DND_PREFS, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("dnd_active", false)) return
+        val nm = getSystemService(NotificationManager::class.java)
+        if (nm.isNotificationPolicyAccessGranted) {
+            val filter = prefs.getInt("prev_filter", NotificationManager.INTERRUPTION_FILTER_ALL)
+            nm.setInterruptionFilter(filter)
+        }
+        prefs.edit().putBoolean("dnd_active", false).apply()
     }
 
     // --- Notifications ---

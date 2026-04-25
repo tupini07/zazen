@@ -6,6 +6,7 @@ import android.media.SoundPool
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.annotation.RawRes
+import com.zazen.data.model.Sound
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,7 +19,7 @@ class SoundPlayer @Inject constructor(
         .setMaxStreams(2)
         .setAudioAttributes(
             AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                .setUsage(AudioAttributes.USAGE_ALARM)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
         )
@@ -34,11 +35,17 @@ class SoundPlayer @Inject constructor(
         }
     }
 
-    fun play(@RawRes resId: Int) {
+    /** Preload every sound in the Sound enum for instant preview playback. */
+    fun preloadAll() {
+        Sound.entries.forEach { preload(it.resId) }
+    }
+
+    fun play(@RawRes resId: Int, volume: Float = 1f) {
         val soundId = loadedSounds.getOrPut(resId) {
             soundPool.load(context, resId, 1)
         }
-        soundPool.play(soundId, 1f, 1f, 1, 0, 1f)
+        val vol = volume.coerceIn(0f, 1f)
+        soundPool.play(soundId, vol, vol, 1, 0, 1f)
     }
 
     fun vibrate(durationMs: Long = 500) {
