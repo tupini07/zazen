@@ -15,8 +15,22 @@ android {
         applicationId = "com.zazen"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+
+        val buildTimestamp = System.getenv("BUILD_TIMESTAMP")
+        versionCode = buildTimestamp?.toIntOrNull() ?: 1
+        versionName = System.getenv("BUILD_VERSION_NAME") ?: "dev"
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_FILE")
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("ANDROID_KEY_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -26,6 +40,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = if (System.getenv("ANDROID_KEYSTORE_FILE") != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
