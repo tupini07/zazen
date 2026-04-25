@@ -14,3 +14,4 @@ app/build/
 .vscode/
 github-secrets.txt
 *.keystore
+screen_test*.png
