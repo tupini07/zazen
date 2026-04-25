@@ -22,11 +22,13 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -143,11 +145,16 @@ class TimerService : Service() {
     private fun stopTimer() {
         handler.removeCallbacks(tickRunnable)
         val elapsed = computeElapsedMillis()
-        logSession(elapsed, completed = false)
         _timerState.value = TimerState.Idle
         currentConfig = null
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        // Save session then clean up service
+        serviceScope.launch {
+            withContext(NonCancellable) {
+                saveSession(elapsed, completed = false)
+            }
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
     }
 
     private fun tick() {
@@ -179,10 +186,16 @@ class TimerService : Service() {
             soundPlayer.play(R.raw.bell)
         }
 
-        logSession(totalDurationMillis, completed = true)
         _timerState.value = TimerState.Finished
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        // Save session before stopping service — use NonCancellable so
+        // stopSelf/onDestroy can't cancel the DB write
+        serviceScope.launch {
+            withContext(NonCancellable) {
+                saveSession(totalDurationMillis, completed = true)
+            }
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
     }
 
     private fun computeElapsedMillis(): Long =
@@ -191,17 +204,15 @@ class TimerService : Service() {
     private fun computeRemainingMillis(): Long =
         (totalDurationMillis - computeElapsedMillis()).coerceAtLeast(0)
 
-    private fun logSession(elapsedMillis: Long, completed: Boolean) {
-        serviceScope.launch {
-            sessionRepository.logSession(
-                MeditationSession(
-                    startTime = System.currentTimeMillis() - elapsedMillis,
-                    durationMillis = totalDurationMillis,
-                    completedMillis = elapsedMillis,
-                    completed = completed,
-                )
+    private suspend fun saveSession(elapsedMillis: Long, completed: Boolean) {
+        sessionRepository.logSession(
+            MeditationSession(
+                startTime = System.currentTimeMillis() - elapsedMillis,
+                durationMillis = totalDurationMillis,
+                completedMillis = elapsedMillis,
+                completed = completed,
             )
-        }
+        )
     }
 
     // --- Notifications ---

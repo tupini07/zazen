@@ -3,6 +3,7 @@ package com.zazen.ui.screens.setup
 import com.zazen.data.model.IntervalBell
 import com.zazen.data.model.Sound
 import com.zazen.data.model.TimerConfig
+import com.zazen.data.repository.PreferencesRepository
 import com.zazen.service.TimerManager
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,12 +15,13 @@ import javax.inject.Inject
 @HiltViewModel
 class SetupViewModel @Inject constructor(
     private val timerManager: TimerManager,
+    private val prefs: PreferencesRepository,
 ) : ViewModel() {
 
-    private val _durationMinutes = MutableStateFlow(25)
+    private val _durationMinutes = MutableStateFlow(prefs.durationMinutes)
     val durationMinutes: StateFlow<Int> = _durationMinutes.asStateFlow()
 
-    private val _vibrateOnly = MutableStateFlow(false)
+    private val _vibrateOnly = MutableStateFlow(prefs.vibrateOnly)
     val vibrateOnly: StateFlow<Boolean> = _vibrateOnly.asStateFlow()
 
     private val _bells = MutableStateFlow<List<IntervalBell>>(emptyList())
@@ -27,6 +29,7 @@ class SetupViewModel @Inject constructor(
 
     fun setDuration(minutes: Int) {
         _durationMinutes.value = minutes.coerceIn(1, 240)
+        prefs.durationMinutes = _durationMinutes.value
     }
 
     fun incrementDuration() = setDuration(_durationMinutes.value + 5)
@@ -34,6 +37,7 @@ class SetupViewModel @Inject constructor(
 
     fun toggleVibrateOnly() {
         _vibrateOnly.value = !_vibrateOnly.value
+        prefs.vibrateOnly = _vibrateOnly.value
     }
 
     fun addBell(triggerAtMinutes: Int, sound: Sound) {
