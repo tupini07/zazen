@@ -1,0 +1,3 @@
+<resources>
+    <style name="Theme.Zazen" parent="android:Theme.Material.NoActionBar" />
+</resources>

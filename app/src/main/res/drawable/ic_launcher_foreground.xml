@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Zen circle (ensō) -->
+    <path
+        android:pathData="M54,24
+            C70.6,24 84,37.4 84,54
+            C84,70.6 70.6,84 54,84
+            C37.4,84 24,70.6 24,54
+            C24,37.4 37.4,24 54,24Z"
+        android:strokeWidth="4"
+        android:strokeColor="#B8C4FF"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round" />
+</vector>

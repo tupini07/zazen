@@ -1,0 +1,29 @@
+Sound Attribution Notices
+========================
+
+This application includes audio files originally sourced from the
+BodhiTimer project (https://github.com/yuttadhammo/BodhiTimer) and the
+meditation sounds collection (https://github.com/nyxkn/meditation).
+
+Individual sound attributions:
+
+bell.ogg — Bell (originally bell3.ogg)
+  Source: FreeSound, fauxpress #42095
+  License: CC0 1.0 Universal (Public Domain)
+
+bell_high.ogg — High Bell (originally bell4.ogg)
+  Source: FreeSound, ryancacophony #202017
+  License: CC0 1.0 Universal (Public Domain)
+
+bowl.ogg — Tibetan Bowl (originally bowl1.ogg)
+  Source: FreeSound, juskiddink #122647
+  License: CC-BY 3.0
+  Attribution: Recorded by juskiddink (https://freesound.org/people/juskiddink/)
+
+bowl_deep.ogg — Deep Bowl (originally bowl2.ogg)
+  Source: FreeSound, Garuda1982 #116315
+  License: CC0 1.0 Universal (Public Domain)
+
+gong.ogg — Zen Gong (originally gong1.ogg)
+  Source: FreeSound, nkuitse #18654
+  License: CC0 1.0 Universal (Public Domain)
