@@ -37,9 +37,26 @@ object DatabaseModule {
 
     private val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            // Rename durationMinutes → durationSeconds, converting existing values
-            db.execSQL("ALTER TABLE presets ADD COLUMN durationSeconds INTEGER NOT NULL DEFAULT 0")
-            db.execSQL("UPDATE presets SET durationSeconds = durationMinutes * 60")
+            // Recreate presets table: replace durationMinutes with durationSeconds
+            db.execSQL(
+                """CREATE TABLE IF NOT EXISTS presets_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    durationSeconds INTEGER NOT NULL,
+                    vibrateOnly INTEGER NOT NULL DEFAULT 0,
+                    bellVolume REAL NOT NULL DEFAULT 1.0,
+                    endSoundName TEXT NOT NULL DEFAULT 'BELL',
+                    dndEnabled INTEGER NOT NULL DEFAULT 0,
+                    bells TEXT NOT NULL DEFAULT '[]'
+                )"""
+            )
+            db.execSQL(
+                """INSERT INTO presets_new (id, name, durationSeconds, vibrateOnly, bellVolume, endSoundName, dndEnabled, bells)
+                   SELECT id, name, durationMinutes * 60, vibrateOnly, bellVolume, endSoundName, dndEnabled, bells
+                   FROM presets"""
+            )
+            db.execSQL("DROP TABLE presets")
+            db.execSQL("ALTER TABLE presets_new RENAME TO presets")
         }
     }
 
