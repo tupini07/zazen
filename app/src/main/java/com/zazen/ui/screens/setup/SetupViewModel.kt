@@ -73,8 +73,18 @@ class SetupViewModel @Inject constructor(
         prefs.durationMinutes = _durationMinutes.value
     }
 
-    fun incrementDuration() = setDuration(_durationMinutes.value + 5)
-    fun decrementDuration() = setDuration(_durationMinutes.value - 5)
+    fun incrementDuration() {
+        val cur = _durationMinutes.value
+        // 1 → 5, then snap to next multiple of 5
+        setDuration(if (cur < 5) 5 else (cur / 5 + 1) * 5)
+    }
+
+    fun decrementDuration() {
+        val cur = _durationMinutes.value
+        // 5 → 1, then snap down to previous multiple of 5
+        val target = if (cur <= 5) 1 else ((cur - 1) / 5) * 5
+        setDuration(target)
+    }
 
     fun toggleVibrateOnly() {
         _vibrateOnly.value = !_vibrateOnly.value
