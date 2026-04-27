@@ -3,8 +3,10 @@ package com.zazen.service
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
+import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.annotation.RawRes
 import com.zazen.data.model.Sound
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -25,7 +27,12 @@ class SoundPlayer @Inject constructor(
         )
         .build()
 
-    private val vibrator = context.getSystemService(Vibrator::class.java)
+    private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Vibrator::class.java)
+    }
 
     private val loadedSounds = mutableMapOf<Int, Int>()
 
@@ -48,9 +55,17 @@ class SoundPlayer @Inject constructor(
         soundPool.play(soundId, vol, vol, 1, 0, 1f)
     }
 
-    fun vibrate(durationMs: Long = 500) {
+    /** Double-pulse vibration pattern so it's noticeable during meditation. */
+    fun vibrate(strong: Boolean = false) {
+        val pattern = if (strong) {
+            // End-of-session: long-short-long pattern
+            longArrayOf(0, 400, 200, 400, 200, 600)
+        } else {
+            // Interval bell: two short pulses
+            longArrayOf(0, 250, 150, 250)
+        }
         vibrator?.vibrate(
-            VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE)
+            VibrationEffect.createWaveform(pattern, -1)
         )
     }
 

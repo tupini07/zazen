@@ -188,7 +188,7 @@ class TimerService : Service() {
         val config = currentConfig
 
         if (config?.vibrateOnly == true) {
-            soundPlayer.vibrate(durationMs = 1000)
+            soundPlayer.vibrate(strong = true)
         } else {
             soundPlayer.play(config?.endSoundResId ?: R.raw.bell, config?.bellVolume ?: 1f)
         }

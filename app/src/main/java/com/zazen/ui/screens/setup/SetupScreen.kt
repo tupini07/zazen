@@ -243,7 +243,7 @@ fun SetupScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // --- Silent mode toggle ---
+            // --- Vibrate toggle ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -255,7 +255,14 @@ fun SetupScreen(
                         contentDescription = null,
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Silent mode")
+                    Column {
+                        Text("Vibrate")
+                        Text(
+                            "Vibrate instead of playing sounds",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 Switch(checked = vibrateOnly, onCheckedChange = { viewModel.toggleVibrateOnly() })
             }
@@ -369,7 +376,7 @@ fun SetupScreen(
             title = { Text("Volume is muted") },
             text = {
                 Text("Your alarm volume is at zero — bells won't be audible. " +
-                    "Raise the volume or switch to silent mode.")
+                    "Raise the volume or enable vibrate mode.")
             },
             confirmButton = {
                 TextButton(onClick = {
