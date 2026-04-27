@@ -17,4 +17,6 @@ class SessionRepository @Inject constructor(
     fun getSessionCount(): Flow<Int> = sessionDao.getSessionCount()
 
     suspend fun logSession(session: MeditationSession): Long = sessionDao.insert(session)
+
+    suspend fun deleteSession(id: Long) = sessionDao.deleteById(id)
 }
