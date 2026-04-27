@@ -13,5 +13,9 @@ sealed interface TimerState {
         val totalMillis: Long,
     ) : TimerState
 
-    data object Finished : TimerState
+    data class Finished(
+        val sessionId: Long,
+        val completed: Boolean,
+        val elapsedMillis: Long = 0,
+    ) : TimerState
 }

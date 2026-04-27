@@ -19,4 +19,6 @@ class SessionRepository @Inject constructor(
     suspend fun logSession(session: MeditationSession): Long = sessionDao.insert(session)
 
     suspend fun deleteSession(id: Long) = sessionDao.deleteById(id)
+
+    suspend fun updateNotes(id: Long, notes: String) = sessionDao.updateNotes(id, notes)
 }

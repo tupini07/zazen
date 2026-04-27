@@ -14,6 +14,9 @@ interface SessionDao {
     @Query("DELETE FROM sessions WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Query("UPDATE sessions SET notes = :notes WHERE id = :id")
+    suspend fun updateNotes(id: Long, notes: String)
+
     @Query("SELECT * FROM sessions ORDER BY startTime DESC")
     fun getAllSessions(): Flow<List<MeditationSession>>
 

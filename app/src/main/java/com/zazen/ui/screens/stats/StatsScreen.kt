@@ -14,12 +14,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -35,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.zazen.data.model.MeditationSession
@@ -52,6 +55,7 @@ fun StatsScreen(
     val totalMillis by viewModel.totalMillis.collectAsState()
     val sessionCount by viewModel.sessionCount.collectAsState()
     var sessionToDelete by remember { mutableStateOf<MeditationSession?>(null) }
+    var sessionToEdit by remember { mutableStateOf<MeditationSession?>(null) }
 
     Scaffold(
         topBar = {
@@ -106,6 +110,7 @@ fun StatsScreen(
                         DismissibleSessionItem(
                             session = session,
                             onDelete = { sessionToDelete = session },
+                            onTap = { sessionToEdit = session },
                         )
                     }
                 }
@@ -129,6 +134,57 @@ fun StatsScreen(
             },
         )
     }
+
+    sessionToEdit?.let { session ->
+        EditNotesDialog(
+            session = session,
+            onDismiss = { sessionToEdit = null },
+            onSave = { notes ->
+                viewModel.updateNotes(session.id, notes)
+                sessionToEdit = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun EditNotesDialog(
+    session: MeditationSession,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var notes by remember(session.id) { mutableStateOf(session.notes) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text("Session Notes")
+                Text(
+                    "${formatDate(session.startTime)} · ${formatMinutes(session.completedMillis)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        text = {
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                label = { Text("Notes") },
+                placeholder = { Text("Add reflections…") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+                maxLines = 8,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(notes.trim()) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable
@@ -153,6 +209,7 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
 private fun DismissibleSessionItem(
     session: MeditationSession,
     onDelete: () -> Unit,
+    onTap: () -> Unit,
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -180,21 +237,29 @@ private fun DismissibleSessionItem(
         },
         enableDismissFromStartToEnd = false,
     ) {
-        SessionItem(session = session, onDelete = onDelete)
+        SessionItem(session = session, onDelete = onDelete, onTap = onTap)
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SessionItem(session: MeditationSession, onDelete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun SessionItem(
+    session: MeditationSession,
+    onDelete: () -> Unit,
+    onTap: () -> Unit,
+) {
+    Card(
+        onClick = onTap,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Row(
             modifier = Modifier
                 .padding(16.dp)
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     formatDate(session.startTime),
                     style = MaterialTheme.typography.bodyMedium,
@@ -204,6 +269,43 @@ private fun SessionItem(session: MeditationSession, onDelete: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (session.notes.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(end = 4.dp)
+                                .height(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        )
+                        Text(
+                            session.notes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                } else {
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(end = 4.dp)
+                                .height(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        )
+                        Text(
+                            "Tap to add notes",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                    }
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

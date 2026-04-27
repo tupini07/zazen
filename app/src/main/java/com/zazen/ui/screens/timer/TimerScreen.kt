@@ -8,9 +8,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -18,6 +22,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,7 +30,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -37,7 +45,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -61,23 +68,28 @@ fun TimerScreen(
         } else emptyList()
     }
 
+    val isActive = state is TimerState.Running || state is TimerState.Paused
+
     // Keep screen on while timer is active
     val view = LocalView.current
-    DisposableEffect(state) {
-        view.keepScreenOn = state is TimerState.Running || state is TimerState.Paused
+    DisposableEffect(isActive) {
+        view.keepScreenOn = isActive
         onDispose { view.keepScreenOn = false }
     }
 
-    // Full-screen immersive mode during active meditation
-    DisposableEffect(Unit) {
+    // Immersive mode only during active meditation (not on Finished screen)
+    DisposableEffect(isActive) {
         val window = (view.context as Activity).window
         val controller = WindowInsetsControllerCompat(window, view)
-        controller.hide(WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (isActive) {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+            view.requestApplyInsets()
+        }
         onDispose {
-            // Restore system bars and force an insets pass so the next screen
-            // picks up the correct status-bar padding immediately.
             controller.show(WindowInsetsCompat.Type.systemBars())
             view.requestApplyInsets()
         }
@@ -98,7 +110,7 @@ fun TimerScreen(
                     bellFractions = bellFractions,
                     onPause = { viewModel.pause() },
                     onResume = {},
-                    onStop = { viewModel.stop(); onTimerDone() },
+                    onStop = { viewModel.stop() },
                 )
 
                 is TimerState.Paused -> ActiveTimerContent(
@@ -108,11 +120,16 @@ fun TimerScreen(
                     bellFractions = bellFractions,
                     onPause = {},
                     onResume = { viewModel.resume() },
-                    onStop = { viewModel.stop(); onTimerDone() },
+                    onStop = { viewModel.stop() },
                 )
 
                 is TimerState.Finished -> FinishedContent(
-                    onDismiss = { viewModel.dismiss(); onTimerDone() },
+                    sessionId = s.sessionId,
+                    completed = s.completed,
+                    elapsedMillis = s.elapsedMillis,
+                    onSaveAndDismiss = { sessionId, notes, onError ->
+                        viewModel.saveNotesAndDismiss(sessionId, notes, onTimerDone, onError)
+                    },
                 )
 
                 is TimerState.Idle -> {
@@ -188,17 +205,82 @@ private fun ActiveTimerContent(
 }
 
 @Composable
-private fun FinishedContent(onDismiss: () -> Unit) {
+private fun FinishedContent(
+    sessionId: Long,
+    completed: Boolean,
+    elapsedMillis: Long,
+    onSaveAndDismiss: (Long, String, () -> Unit) -> Unit,
+) {
+    // Keep draft independent of sessionId to avoid resetting when ID arrives from DB
+    var notes by rememberSaveable { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    val hasValidId = sessionId > 0
+
+    val durationText = remember(elapsedMillis) {
+        val totalSec = (elapsedMillis / 1000).toInt()
+        val min = totalSec / 60
+        val sec = totalSec % 60
+        if (min > 0 && sec > 0) "${min}m ${sec}s"
+        else if (min > 0) "${min} min"
+        else "${sec}s"
+    }
+
     Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Text("🧘", style = MaterialTheme.typography.displayLarge)
         Spacer(Modifier.height(16.dp))
-        Text("Session Complete", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(32.dp))
-        androidx.compose.material3.Button(onClick = onDismiss) {
-            Text("Done")
+        Text(
+            if (completed) "Session Complete" else "Session Ended",
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            if (completed) "$durationText completed" else "Ended after $durationText",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(Modifier.height(24.dp))
+
+        OutlinedTextField(
+            value = notes,
+            onValueChange = { notes = it },
+            label = {
+                Text(
+                    if (completed) "How was your sit? (optional)"
+                    else "Anything you want to note? (optional)"
+                )
+            },
+            placeholder = { Text("Jot down any insights or observations…") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3,
+            maxLines = 6,
+            enabled = !saving,
+        )
+
+        Spacer(Modifier.height(24.dp))
+
+        androidx.compose.material3.Button(
+            onClick = {
+                saving = true
+                onSaveAndDismiss(sessionId, notes) { saving = false }
+            },
+            enabled = !saving && hasValidId,
+        ) {
+            Text(
+                when {
+                    saving -> "Saving…"
+                    notes.isBlank() -> "Skip"
+                    else -> "Done"
+                }
+            )
         }
     }
 }
@@ -249,9 +331,6 @@ private fun TimerCircle(
             val dotRadius = stroke * 1.1f
 
             for (fraction in bellFractions) {
-                // fraction=0 is top (start), fraction=1 is back at top (end)
-                // Progress counts down from 1→0, but bell fraction is elapsed/total
-                // On the arc: 0 elapsed = top = -90°, so angle = -90 + fraction*360
                 val angleDeg = -90f + fraction * 360f
                 val angleRad = Math.toRadians(angleDeg.toDouble())
                 val x = cx + radius * cos(angleRad).toFloat()

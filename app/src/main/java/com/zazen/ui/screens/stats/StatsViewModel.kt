@@ -27,4 +27,8 @@ class StatsViewModel @Inject constructor(
     fun deleteSession(session: MeditationSession) {
         viewModelScope.launch { sessionRepository.deleteSession(session.id) }
     }
+
+    fun updateNotes(sessionId: Long, notes: String) {
+        viewModelScope.launch { sessionRepository.updateNotes(sessionId, notes) }
+    }
 }

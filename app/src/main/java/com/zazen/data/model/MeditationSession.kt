@@ -14,4 +14,6 @@ data class MeditationSession(
     val completedMillis: Long,
     /** Whether the timer ran to completion */
     val completed: Boolean,
+    /** Optional user notes / reflections */
+    val notes: String = "",
 )

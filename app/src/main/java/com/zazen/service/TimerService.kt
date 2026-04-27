@@ -150,12 +150,12 @@ class TimerService : Service() {
     private fun stopTimer() {
         handler.removeCallbacks(tickRunnable)
         val elapsed = computeElapsedMillis()
-        _timerState.value = TimerState.Idle
-        currentConfig = null
         serviceScope.launch {
-            withContext(NonCancellable) {
+            val sessionId = withContext(NonCancellable) {
                 saveSession(elapsed, completed = false)
             }
+            _timerState.value = TimerState.Finished(sessionId = sessionId, completed = false, elapsedMillis = elapsed)
+            currentConfig = null
             restoreDnd()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -193,11 +193,12 @@ class TimerService : Service() {
             soundPlayer.play(config?.endSoundResId ?: R.raw.bell, config?.bellVolume ?: 1f)
         }
 
-        _timerState.value = TimerState.Finished
+        _timerState.value = TimerState.Finished(sessionId = 0, completed = true, elapsedMillis = totalDurationMillis)
         serviceScope.launch {
-            withContext(NonCancellable) {
+            val sessionId = withContext(NonCancellable) {
                 saveSession(totalDurationMillis, completed = true)
             }
+            _timerState.value = TimerState.Finished(sessionId = sessionId, completed = true, elapsedMillis = totalDurationMillis)
             restoreDnd()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -210,8 +211,8 @@ class TimerService : Service() {
     private fun computeRemainingMillis(): Long =
         (totalDurationMillis - computeElapsedMillis()).coerceAtLeast(0)
 
-    private suspend fun saveSession(elapsedMillis: Long, completed: Boolean) {
-        sessionRepository.logSession(
+    private suspend fun saveSession(elapsedMillis: Long, completed: Boolean): Long {
+        return sessionRepository.logSession(
             MeditationSession(
                 startTime = System.currentTimeMillis() - elapsedMillis,
                 durationMillis = totalDurationMillis,
