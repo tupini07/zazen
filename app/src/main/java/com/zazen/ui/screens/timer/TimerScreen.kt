@@ -130,6 +130,9 @@ fun TimerScreen(
                     onSaveAndDismiss = { sessionId, notes, onError ->
                         viewModel.saveNotesAndDismiss(sessionId, notes, onTimerDone, onError)
                     },
+                    onDiscard = { sessionId ->
+                        viewModel.discardAndDismiss(sessionId, onTimerDone)
+                    },
                 )
 
                 is TimerState.Idle -> {
@@ -210,6 +213,7 @@ private fun FinishedContent(
     completed: Boolean,
     elapsedMillis: Long,
     onSaveAndDismiss: (Long, String, () -> Unit) -> Unit,
+    onDiscard: (Long) -> Unit,
 ) {
     // Keep draft independent of sessionId to avoid resetting when ID arrives from DB
     var notes by rememberSaveable { mutableStateOf("") }
@@ -279,6 +283,18 @@ private fun FinishedContent(
                     notes.isBlank() -> "Skip"
                     else -> "Done"
                 }
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        androidx.compose.material3.TextButton(
+            onClick = { onDiscard(sessionId) },
+            enabled = !saving && hasValidId,
+        ) {
+            Text(
+                "Discard session",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

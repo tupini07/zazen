@@ -25,6 +25,18 @@ class TimerViewModel @Inject constructor(
     fun stop() = timerManager.stop()
     fun dismiss() = timerManager.reset()
 
+    fun discardAndDismiss(sessionId: Long, onDone: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                if (sessionId > 0) {
+                    sessionRepository.deleteSession(sessionId)
+                }
+            } catch (_: Exception) { /* best-effort delete */ }
+            dismiss()
+            onDone()
+        }
+    }
+
     fun saveNotesAndDismiss(sessionId: Long, notes: String, onDone: () -> Unit, onError: () -> Unit) {
         viewModelScope.launch {
             try {
