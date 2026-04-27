@@ -7,6 +7,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.json.JSONArray
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -49,4 +51,28 @@ class PreferencesRepository @Inject constructor(
             prefs.edit().putString("theme_mode", value).apply()
             _themeMode.value = value
         }
+
+    /** Interval bells stored as JSON array of {triggerAtMillis, soundName} objects. */
+    var intervalBellsJson: String
+        get() = prefs.getString("interval_bells", "[]") ?: "[]"
+        set(value) = prefs.edit().putString("interval_bells", value).apply()
+
+    fun saveIntervalBells(bells: List<Pair<Long, String>>) {
+        val arr = JSONArray()
+        bells.forEach { (millis, soundName) ->
+            arr.put(JSONObject().apply {
+                put("triggerAtMillis", millis)
+                put("soundName", soundName)
+            })
+        }
+        intervalBellsJson = arr.toString()
+    }
+
+    fun loadIntervalBells(): List<Pair<Long, String>> {
+        val arr = JSONArray(intervalBellsJson)
+        return (0 until arr.length()).map { i ->
+            val obj = arr.getJSONObject(i)
+            obj.getLong("triggerAtMillis") to obj.getString("soundName")
+        }
+    }
 }

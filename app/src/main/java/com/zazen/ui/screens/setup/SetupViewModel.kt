@@ -53,8 +53,19 @@ class SetupViewModel @Inject constructor(
     val themeMode: StateFlow<String> = prefs.themeModeFlow
 
     init {
-        // Preload all sounds for instant preview
         soundPlayer.preloadAll()
+        // Restore last-used interval bells
+        _bells.value = prefs.loadIntervalBells().mapNotNull { (millis, soundName) ->
+            val sound = Sound.entries.find { it.name == soundName } ?: return@mapNotNull null
+            IntervalBell(triggerAtMillis = millis, soundResId = sound.resId)
+        }
+    }
+
+    private fun persistBells() {
+        prefs.saveIntervalBells(_bells.value.map { bell ->
+            val sound = Sound.entries.find { it.resId == bell.soundResId } ?: Sound.DEFAULT
+            bell.triggerAtMillis to sound.name
+        })
     }
 
     fun setDuration(minutes: Int) {
@@ -90,10 +101,12 @@ class SetupViewModel @Inject constructor(
             triggerAtMillis = triggerAtMinutes * 60_000L,
             soundResId = sound.resId,
         )).sortedBy { it.triggerAtMillis }
+        persistBells()
     }
 
     fun removeBell(index: Int) {
         _bells.value = _bells.value.toMutableList().apply { removeAt(index) }
+        persistBells()
     }
 
     fun previewSound(sound: Sound) {
@@ -115,6 +128,7 @@ class SetupViewModel @Inject constructor(
             val sound = Sound.entries.find { it.name == pb.soundName } ?: return@mapNotNull null
             IntervalBell(triggerAtMillis = pb.triggerAtMillis, soundResId = sound.resId)
         }
+        persistBells()
     }
 
     fun savePreset(name: String) {
