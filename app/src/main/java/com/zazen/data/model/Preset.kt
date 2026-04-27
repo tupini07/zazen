@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 data class Preset(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val durationMinutes: Int,
+    val durationSeconds: Int,
     val vibrateOnly: Boolean = false,
     val bellVolume: Float = 1f,
     val endSoundName: String = Sound.DEFAULT.name,
@@ -17,7 +17,7 @@ data class Preset(
     fun toTimerConfig(): TimerConfig {
         val endSound = Sound.entries.find { it.name == endSoundName } ?: Sound.DEFAULT
         return TimerConfig(
-            durationMillis = durationMinutes * 60_000L,
+            durationMillis = durationSeconds * 1_000L,
             bells = bells.mapNotNull { pb ->
                 val sound = Sound.entries.find { it.name == pb.soundName } ?: return@mapNotNull null
                 IntervalBell(triggerAtMillis = pb.triggerAtMillis, soundResId = sound.resId)
@@ -32,7 +32,7 @@ data class Preset(
     companion object {
         fun fromSetupState(
             name: String,
-            durationMinutes: Int,
+            durationSeconds: Int,
             vibrateOnly: Boolean,
             bellVolume: Float,
             endSound: Sound,
@@ -40,7 +40,7 @@ data class Preset(
             intervalBells: List<IntervalBell>,
         ): Preset = Preset(
             name = name,
-            durationMinutes = durationMinutes,
+            durationSeconds = durationSeconds,
             vibrateOnly = vibrateOnly,
             bellVolume = bellVolume,
             endSoundName = endSound.name,

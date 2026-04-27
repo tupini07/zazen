@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -70,6 +71,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -85,7 +87,7 @@ fun SetupScreen(
     onNavigateToStats: () -> Unit,
     viewModel: SetupViewModel = hiltViewModel(),
 ) {
-    val durationMinutes by viewModel.durationMinutes.collectAsState()
+    val durationSeconds by viewModel.durationSeconds.collectAsState()
     val vibrateOnly by viewModel.vibrateOnly.collectAsState()
     val bellVolume by viewModel.bellVolume.collectAsState()
     val endSound by viewModel.endSound.collectAsState()
@@ -97,6 +99,7 @@ fun SetupScreen(
     var showAddBellDialog by remember { mutableStateOf(false) }
     var editingBellIndex by remember { mutableIntStateOf(-1) }
     var showSavePresetDialog by remember { mutableStateOf(false) }
+    var showDurationEditor by remember { mutableStateOf(false) }
     var showVolumeWarning by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
     var presetToDelete by remember { mutableStateOf<Preset?>(null) }
@@ -206,9 +209,11 @@ fun SetupScreen(
                     Icon(Icons.Default.Remove, "Less")
                 }
                 Text(
-                    text = formatDuration(durationMinutes),
+                    text = formatDuration(durationSeconds),
                     style = MaterialTheme.typography.displayMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .clickable { showDurationEditor = true },
                 )
                 IconButton(onClick = { viewModel.incrementDuration() }) {
                     Icon(Icons.Default.Add, "More")
@@ -352,10 +357,21 @@ fun SetupScreen(
 
     // --- Dialogs ---
 
+    if (showDurationEditor) {
+        DurationEditorDialog(
+            currentSeconds = durationSeconds,
+            onConfirm = { totalSec ->
+                viewModel.setDurationSeconds(totalSec)
+                showDurationEditor = false
+            },
+            onDismiss = { showDurationEditor = false },
+        )
+    }
+
     if (showAddBellDialog) {
         val editBell = if (editingBellIndex >= 0 && editingBellIndex < bells.size) bells[editingBellIndex] else null
         AddBellDialog(
-            maxMinutes = durationMinutes,
+            maxMinutes = durationSeconds / 60,
             initialMinutes = editBell?.let { (it.triggerAtMillis / 60_000).toInt() },
             initialSound = editBell?.let { Sound.fromResId(it.soundResId) },
             onConfirm = { minutes, sound ->
@@ -651,10 +667,68 @@ private fun SavePresetDialog(
     )
 }
 
-private fun formatDuration(minutes: Int): String {
-    val h = minutes / 60
-    val m = minutes % 60
-    return if (h > 0) "%d:%02d".format(h, m) else "%d min".format(m)
+@Composable
+private fun DurationEditorDialog(
+    currentSeconds: Int,
+    onConfirm: (totalSeconds: Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var minutesText by remember { mutableStateOf((currentSeconds / 60).toString()) }
+    var secondsText by remember { mutableStateOf((currentSeconds % 60).toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Set Duration") },
+        text = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = minutesText,
+                    onValueChange = { minutesText = it.filter { c -> c.isDigit() }.take(3) },
+                    label = { Text("Min") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                Text(":", style = MaterialTheme.typography.headlineMedium)
+                OutlinedTextField(
+                    value = secondsText,
+                    onValueChange = { secondsText = it.filter { c -> c.isDigit() }.take(2) },
+                    label = { Text("Sec") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val m = minutesText.toIntOrNull() ?: 0
+                    val s = (secondsText.toIntOrNull() ?: 0).coerceIn(0, 59)
+                    val total = (m * 60 + s).coerceAtLeast(10)
+                    onConfirm(total)
+                },
+            ) { Text("Set") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+private fun formatDuration(totalSeconds: Int): String {
+    val h = totalSeconds / 3600
+    val m = (totalSeconds % 3600) / 60
+    val s = totalSeconds % 60
+    return when {
+        h > 0 && s > 0 -> "%d:%02d:%02d".format(h, m, s)
+        h > 0 -> "%d:%02d".format(h, m)
+        s > 0 -> "%d:%02d".format(m, s)
+        else -> "%d min".format(m)
+    }
 }
 
 private fun formatBellTime(millis: Long): String {

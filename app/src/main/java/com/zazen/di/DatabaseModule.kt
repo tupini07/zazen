@@ -35,6 +35,14 @@ object DatabaseModule {
         }
     }
 
+    private val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Rename durationMinutes → durationSeconds, converting existing values
+            db.execSQL("ALTER TABLE presets ADD COLUMN durationSeconds INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("UPDATE presets SET durationSeconds = durationMinutes * 60")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ZazenDatabase {
@@ -42,7 +50,7 @@ object DatabaseModule {
             context,
             ZazenDatabase::class.java,
             "zazen-db",
-        ).addMigrations(MIGRATION_1_2).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
     }
 
     @Provides

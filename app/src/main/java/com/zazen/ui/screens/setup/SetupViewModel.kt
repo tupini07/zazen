@@ -27,8 +27,9 @@ class SetupViewModel @Inject constructor(
     private val soundPlayer: SoundPlayer,
 ) : ViewModel() {
 
-    private val _durationMinutes = MutableStateFlow(prefs.durationMinutes)
-    val durationMinutes: StateFlow<Int> = _durationMinutes.asStateFlow()
+    /** Duration in total seconds. */
+    private val _durationSeconds = MutableStateFlow(prefs.durationSeconds)
+    val durationSeconds: StateFlow<Int> = _durationSeconds.asStateFlow()
 
     private val _vibrateOnly = MutableStateFlow(prefs.vibrateOnly)
     val vibrateOnly: StateFlow<Boolean> = _vibrateOnly.asStateFlow()
@@ -68,22 +69,23 @@ class SetupViewModel @Inject constructor(
         })
     }
 
-    fun setDuration(minutes: Int) {
-        _durationMinutes.value = minutes.coerceIn(1, 240)
-        prefs.durationMinutes = _durationMinutes.value
+    fun setDurationSeconds(seconds: Int) {
+        _durationSeconds.value = seconds.coerceIn(10, 240 * 60)
+        prefs.durationSeconds = _durationSeconds.value
     }
 
     fun incrementDuration() {
-        val cur = _durationMinutes.value
-        // 1 → 5, then snap to next multiple of 5
-        setDuration(if (cur < 5) 5 else (cur / 5 + 1) * 5)
+        val curMin = _durationSeconds.value / 60
+        // Snap to next 5-min boundary
+        val nextMin = if (curMin < 5) 5 else (curMin / 5 + 1) * 5
+        setDurationSeconds(nextMin * 60)
     }
 
     fun decrementDuration() {
-        val cur = _durationMinutes.value
-        // 5 → 1, then snap down to previous multiple of 5
-        val target = if (cur <= 5) 1 else ((cur - 1) / 5) * 5
-        setDuration(target)
+        val curMin = _durationSeconds.value / 60
+        // Snap down; below 5 min → 1 min
+        val targetMin = if (curMin <= 5) 1 else ((curMin - 1) / 5) * 5
+        setDurationSeconds(targetMin * 60)
     }
 
     fun toggleVibrateOnly() {
@@ -136,7 +138,7 @@ class SetupViewModel @Inject constructor(
     // --- Presets ---
 
     fun loadPreset(preset: Preset) {
-        setDuration(preset.durationMinutes)
+        setDurationSeconds(preset.durationSeconds)
         _vibrateOnly.value = preset.vibrateOnly
         prefs.vibrateOnly = preset.vibrateOnly
         setBellVolume(preset.bellVolume)
@@ -156,7 +158,7 @@ class SetupViewModel @Inject constructor(
             presetRepository.save(
                 Preset.fromSetupState(
                     name = name,
-                    durationMinutes = _durationMinutes.value,
+                    durationSeconds = _durationSeconds.value,
                     vibrateOnly = _vibrateOnly.value,
                     bellVolume = _bellVolume.value,
                     endSound = _endSound.value,
@@ -180,7 +182,7 @@ class SetupViewModel @Inject constructor(
     fun startTimer() {
         timerManager.start(
             TimerConfig(
-                durationMillis = _durationMinutes.value * 60_000L,
+                durationMillis = _durationSeconds.value * 1_000L,
                 bells = _bells.value,
                 vibrateOnly = _vibrateOnly.value,
                 bellVolume = _bellVolume.value,

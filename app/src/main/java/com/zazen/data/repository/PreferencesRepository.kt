@@ -19,9 +19,18 @@ class PreferencesRepository @Inject constructor(
     private val prefs: SharedPreferences =
         context.getSharedPreferences("zazen_prefs", Context.MODE_PRIVATE)
 
-    var durationMinutes: Int
-        get() = prefs.getInt("duration_minutes", 25)
-        set(value) = prefs.edit().putInt("duration_minutes", value).apply()
+    var durationSeconds: Int
+        get() {
+            // Migrate from old minutes-based key if present
+            val oldMinutes = prefs.getInt("duration_minutes", -1)
+            if (oldMinutes >= 0) {
+                val seconds = oldMinutes * 60
+                prefs.edit().putInt("duration_seconds", seconds).remove("duration_minutes").apply()
+                return seconds
+            }
+            return prefs.getInt("duration_seconds", 25 * 60)
+        }
+        set(value) = prefs.edit().putInt("duration_seconds", value).apply()
 
     var vibrateOnly: Boolean
         get() = prefs.getBoolean("vibrate_only", false)
