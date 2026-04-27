@@ -252,13 +252,12 @@ private fun FinishedContent(
         OutlinedTextField(
             value = notes,
             onValueChange = { notes = it },
-            label = {
+            placeholder = {
                 Text(
-                    if (completed) "How was your sit? (optional)"
-                    else "Anything you want to note? (optional)"
+                    if (completed) "Jot down any reflections or insights…"
+                    else "Anything you want to note about this sit…"
                 )
             },
-            placeholder = { Text("Jot down any insights or observations…") },
             modifier = Modifier.fillMaxWidth(),
             minLines = 3,
             maxLines = 6,
