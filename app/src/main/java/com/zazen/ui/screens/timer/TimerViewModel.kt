@@ -1,6 +1,7 @@
 package com.zazen.ui.screens.timer
 
 import androidx.lifecycle.ViewModel
+import com.zazen.data.model.TimerConfig
 import com.zazen.data.model.TimerState
 import com.zazen.service.TimerManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,6 +14,7 @@ class TimerViewModel @Inject constructor(
 ) : ViewModel() {
 
     val state: StateFlow<TimerState> = timerManager.state
+    val config: TimerConfig? get() = timerManager.config
 
     fun pause() = timerManager.pause()
     fun resume() = timerManager.resume()

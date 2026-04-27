@@ -26,6 +26,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -42,6 +43,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.zazen.data.model.TimerState
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun TimerScreen(
@@ -49,6 +52,15 @@ fun TimerScreen(
     viewModel: TimerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+
+    // Pre-compute bell positions as fractions of total duration (0..1)
+    val bellFractions = remember {
+        val cfg = viewModel.config
+        if (cfg != null && cfg.durationMillis > 0) {
+            cfg.bells.map { it.triggerAtMillis.toFloat() / cfg.durationMillis }
+                .filter { it in 0f..1f }
+        } else emptyList()
+    }
 
     // Keep screen on while timer is active
     val view = LocalView.current
@@ -83,6 +95,7 @@ fun TimerScreen(
                     remaining = s.remainingMillis,
                     total = s.totalMillis,
                     isPaused = false,
+                    bellFractions = bellFractions,
                     onPause = { viewModel.pause() },
                     onResume = {},
                     onStop = { viewModel.stop(); onTimerDone() },
@@ -92,6 +105,7 @@ fun TimerScreen(
                     remaining = s.remainingMillis,
                     total = s.totalMillis,
                     isPaused = true,
+                    bellFractions = bellFractions,
                     onPause = {},
                     onResume = { viewModel.resume() },
                     onStop = { viewModel.stop(); onTimerDone() },
@@ -114,6 +128,7 @@ private fun ActiveTimerContent(
     remaining: Long,
     total: Long,
     isPaused: Boolean,
+    bellFractions: List<Float>,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
@@ -125,6 +140,7 @@ private fun ActiveTimerContent(
         Box(contentAlignment = Alignment.Center) {
             TimerCircle(
                 progress = if (total > 0) remaining.toFloat() / total else 0f,
+                bellFractions = bellFractions,
                 modifier = Modifier.size(280.dp),
             )
             Text(
@@ -191,9 +207,11 @@ private fun FinishedContent(onDismiss: () -> Unit) {
 private fun TimerCircle(
     progress: Float,
     modifier: Modifier = Modifier,
+    bellFractions: List<Float> = emptyList(),
     strokeWidth: Dp = 8.dp,
     trackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     progressColor: Color = MaterialTheme.colorScheme.primary,
+    bellMarkerColor: Color = MaterialTheme.colorScheme.tertiary,
 ) {
     Canvas(modifier = modifier) {
         val stroke = strokeWidth.toPx()
@@ -201,6 +219,7 @@ private fun TimerCircle(
         val topLeft = Offset((size.width - diameter) / 2, (size.height - diameter) / 2)
         val arcSize = Size(diameter, diameter)
 
+        // Background track
         drawArc(
             color = trackColor,
             startAngle = -90f,
@@ -211,6 +230,7 @@ private fun TimerCircle(
             style = Stroke(width = stroke, cap = StrokeCap.Round),
         )
 
+        // Progress arc
         drawArc(
             color = progressColor,
             startAngle = -90f,
@@ -220,6 +240,29 @@ private fun TimerCircle(
             size = arcSize,
             style = Stroke(width = stroke, cap = StrokeCap.Round),
         )
+
+        // Bell markers as small dots on the circle
+        if (bellFractions.isNotEmpty()) {
+            val cx = size.width / 2
+            val cy = size.height / 2
+            val radius = diameter / 2
+            val dotRadius = stroke * 1.1f
+
+            for (fraction in bellFractions) {
+                // fraction=0 is top (start), fraction=1 is back at top (end)
+                // Progress counts down from 1→0, but bell fraction is elapsed/total
+                // On the arc: 0 elapsed = top = -90°, so angle = -90 + fraction*360
+                val angleDeg = -90f + fraction * 360f
+                val angleRad = Math.toRadians(angleDeg.toDouble())
+                val x = cx + radius * cos(angleRad).toFloat()
+                val y = cy + radius * sin(angleRad).toFloat()
+                drawCircle(
+                    color = bellMarkerColor,
+                    radius = dotRadius,
+                    center = Offset(x, y),
+                )
+            }
+        }
     }
 }
 
