@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoNotDisturbOn
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
@@ -62,6 +63,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -93,6 +95,7 @@ fun SetupScreen(
     val themeMode by viewModel.themeMode.collectAsState()
 
     var showAddBellDialog by remember { mutableStateOf(false) }
+    var editingBellIndex by remember { mutableIntStateOf(-1) }
     var showSavePresetDialog by remember { mutableStateOf(false) }
     var showVolumeWarning by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
@@ -309,6 +312,7 @@ fun SetupScreen(
                 bells.forEachIndexed { index, bell ->
                     BellItem(
                         bell = bell,
+                        onEdit = { editingBellIndex = index; showAddBellDialog = true },
                         onRemove = { viewModel.removeBell(index) },
                         onPreview = {
                             Sound.fromResId(bell.soundResId)?.let { viewModel.previewSound(it) }
@@ -349,13 +353,21 @@ fun SetupScreen(
     // --- Dialogs ---
 
     if (showAddBellDialog) {
+        val editBell = if (editingBellIndex >= 0 && editingBellIndex < bells.size) bells[editingBellIndex] else null
         AddBellDialog(
             maxMinutes = durationMinutes,
+            initialMinutes = editBell?.let { (it.triggerAtMillis / 60_000).toInt() },
+            initialSound = editBell?.let { Sound.fromResId(it.soundResId) },
             onConfirm = { minutes, sound ->
-                viewModel.addBell(minutes, sound)
+                if (editingBellIndex >= 0) {
+                    viewModel.updateBell(editingBellIndex, minutes, sound)
+                } else {
+                    viewModel.addBell(minutes, sound)
+                }
                 showAddBellDialog = false
+                editingBellIndex = -1
             },
-            onDismiss = { showAddBellDialog = false },
+            onDismiss = { showAddBellDialog = false; editingBellIndex = -1 },
             onPreview = { viewModel.previewSound(it) },
         )
     }
@@ -503,7 +515,7 @@ private fun EndBellSelector(
 }
 
 @Composable
-private fun BellItem(bell: IntervalBell, onRemove: () -> Unit, onPreview: () -> Unit) {
+private fun BellItem(bell: IntervalBell, onEdit: () -> Unit, onRemove: () -> Unit, onPreview: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -526,6 +538,9 @@ private fun BellItem(bell: IntervalBell, onRemove: () -> Unit, onPreview: () -> 
             IconButton(onClick = onPreview) {
                 Icon(Icons.Default.PlayCircle, "Preview", modifier = Modifier.size(20.dp))
             }
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, "Edit", modifier = Modifier.size(20.dp))
+            }
             IconButton(onClick = onRemove) {
                 Icon(Icons.Default.Close, "Remove")
             }
@@ -536,16 +551,21 @@ private fun BellItem(bell: IntervalBell, onRemove: () -> Unit, onPreview: () -> 
 @Composable
 private fun AddBellDialog(
     maxMinutes: Int,
+    initialMinutes: Int? = null,
+    initialSound: Sound? = null,
     onConfirm: (minutes: Int, sound: Sound) -> Unit,
     onDismiss: () -> Unit,
     onPreview: (Sound) -> Unit,
 ) {
-    var sliderValue by remember { mutableFloatStateOf(5f.coerceAtMost(maxMinutes.toFloat())) }
-    var selectedSound by remember { mutableStateOf(Sound.DEFAULT) }
+    val isEditing = initialMinutes != null
+    var sliderValue by remember {
+        mutableFloatStateOf((initialMinutes ?: 5).toFloat().coerceIn(1f, maxMinutes.toFloat()))
+    }
+    var selectedSound by remember { mutableStateOf(initialSound ?: Sound.DEFAULT) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Interval Bell") },
+        title = { Text(if (isEditing) "Edit Interval Bell" else "Add Interval Bell") },
         text = {
             Column {
                 Text("Time from start")
@@ -591,7 +611,7 @@ private fun AddBellDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(sliderValue.toInt(), selectedSound) }) {
-                Text("Add")
+                Text(if (isEditing) "Save" else "Add")
             }
         },
         dismissButton = {

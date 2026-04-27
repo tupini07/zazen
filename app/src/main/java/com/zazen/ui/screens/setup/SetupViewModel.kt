@@ -119,6 +119,16 @@ class SetupViewModel @Inject constructor(
         persistBells()
     }
 
+    fun updateBell(index: Int, triggerAtMinutes: Int, sound: Sound) {
+        _bells.value = _bells.value.toMutableList().apply {
+            this[index] = IntervalBell(
+                triggerAtMillis = triggerAtMinutes * 60_000L,
+                soundResId = sound.resId,
+            )
+        }.sortedBy { it.triggerAtMillis }
+        persistBells()
+    }
+
     fun previewSound(sound: Sound) {
         soundPlayer.play(sound.resId, _bellVolume.value)
     }
