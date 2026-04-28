@@ -171,7 +171,7 @@ class TimerService : Service() {
         while (nextBellIndex < bells.size && bells[nextBellIndex].triggerAtMillis <= elapsed) {
             val bell = bells[nextBellIndex]
             val useVibrate = bell.vibrateOnly || (currentConfig?.vibrateOnly == true)
-            if (useVibrate) soundPlayer.vibrate() else soundPlayer.play(bell.soundResId, volume)
+            if (useVibrate) soundPlayer.vibrate() else soundPlayer.playFull(bell.soundResId, volume)
             nextBellIndex++
         }
 
@@ -190,7 +190,7 @@ class TimerService : Service() {
         if (config?.vibrateOnly == true) {
             soundPlayer.vibrate(strong = true)
         } else {
-            soundPlayer.play(config?.endSoundResId ?: R.raw.bell, config?.bellVolume ?: 1f)
+            soundPlayer.playFull(config?.endSoundResId ?: R.raw.bell, config?.bellVolume ?: 1f)
         }
 
         _timerState.value = TimerState.Finished(sessionId = 0, completed = true, elapsedMillis = totalDurationMillis)

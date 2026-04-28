@@ -346,7 +346,7 @@ private fun TimerCircle(
             val dotRadius = stroke * 1.1f
 
             for (fraction in bellFractions) {
-                val angleDeg = -90f + fraction * 360f
+                val angleDeg = -90f + (1f - fraction) * 360f
                 val angleRad = Math.toRadians(angleDeg.toDouble())
                 val x = cx + radius * cos(angleRad).toFloat()
                 val y = cy + radius * sin(angleRad).toFloat()
