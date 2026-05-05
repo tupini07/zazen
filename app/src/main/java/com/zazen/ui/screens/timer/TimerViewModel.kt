@@ -22,11 +22,13 @@ class TimerViewModel @Inject constructor(
     val state: StateFlow<TimerState> = timerManager.state
     val config: TimerConfig? get() = timerManager.config
     val screenAlwaysOn: Boolean get() = prefs.screenAlwaysOn
+    val vibrateOnly: StateFlow<Boolean> = timerManager.vibrateOnly
 
     fun pause() = timerManager.pause()
     fun resume() = timerManager.resume()
     fun stop() = timerManager.stop()
     fun dismiss() = timerManager.reset()
+    fun toggleVibrateOnly() = timerManager.toggleVibrateOnly()
 
     fun discardAndDismiss(sessionId: Long, onDone: () -> Unit) {
         viewModelScope.launch {

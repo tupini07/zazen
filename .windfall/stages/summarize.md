@@ -1,1 +1,1 @@
-Summary written to `.windfall/stages/summarize.md`. It covers the full recipe: 5 files changed, the approach (conditional `keepScreenOn` gated by SharedPreferences), key decisions (default true, no permissions needed, not in presets), and verification results.
+Summary written to `.windfall/stages/summarize.md`. It covers the full recipe: 4 files changed, the approach (live `MutableStateFlow` overriding the immutable config), UI placement (top-right speaker icon), key decisions (session-scoped, no persistence, thread-safe), and verification results (build + lint pass).

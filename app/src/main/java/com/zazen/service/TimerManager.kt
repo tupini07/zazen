@@ -19,6 +19,7 @@ class TimerManager @Inject constructor(
 ) {
     val state: StateFlow<TimerState> get() = TimerService.timerState
     val config: TimerConfig? get() = TimerService.currentConfig
+    val vibrateOnly: StateFlow<Boolean> get() = TimerService.vibrateOnly
 
     fun start(config: TimerConfig) {
         val intent = Intent(context, TimerService::class.java).apply {
@@ -33,6 +34,8 @@ class TimerManager @Inject constructor(
     fun resume() = sendCommand(TimerService.ACTION_RESUME)
 
     fun stop() = sendCommand(TimerService.ACTION_STOP)
+
+    fun toggleVibrateOnly() = TimerService.toggleVibrateOnly()
 
     /** Move from Finished back to Idle */
     fun reset() {

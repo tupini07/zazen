@@ -1,7 +1,7 @@
 All checks pass:
 
-- **Build** (`assembleDebug`): ✅ 
-- **Unit tests** (`test`): ✅ 
-- **Lint** (`lint`): ✅ 
+- **Build**: ✅ compiles cleanly
+- **Unit tests**: ✅ (project has no test sources — `NO-SOURCE`)
+- **Lint**: ✅ no errors
 
-No errors or failures introduced by the changes.
+Results written to `.windfall/stages/test.md`.

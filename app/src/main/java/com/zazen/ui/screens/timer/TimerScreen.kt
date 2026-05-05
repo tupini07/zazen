@@ -16,11 +16,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -58,6 +61,7 @@ fun TimerScreen(
     viewModel: TimerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val vibrateOnly by viewModel.vibrateOnly.collectAsState()
 
     // Pre-compute bell positions as fractions of total duration (0..1)
     val bellFractions = remember {
@@ -109,9 +113,11 @@ fun TimerScreen(
                     total = s.totalMillis,
                     isPaused = false,
                     bellFractions = bellFractions,
+                    vibrateOnly = vibrateOnly,
                     onPause = { viewModel.pause() },
                     onResume = {},
                     onStop = { viewModel.stop() },
+                    onToggleVibrateOnly = { viewModel.toggleVibrateOnly() },
                 )
 
                 is TimerState.Paused -> ActiveTimerContent(
@@ -119,9 +125,11 @@ fun TimerScreen(
                     total = s.totalMillis,
                     isPaused = true,
                     bellFractions = bellFractions,
+                    vibrateOnly = vibrateOnly,
                     onPause = {},
                     onResume = { viewModel.resume() },
                     onStop = { viewModel.stop() },
+                    onToggleVibrateOnly = { viewModel.toggleVibrateOnly() },
                 )
 
                 is TimerState.Finished -> FinishedContent(
@@ -150,59 +158,79 @@ private fun ActiveTimerContent(
     total: Long,
     isPaused: Boolean,
     bellFractions: List<Float>,
+    vibrateOnly: Boolean,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
+    onToggleVibrateOnly: () -> Unit,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            TimerCircle(
-                progress = if (total > 0) remaining.toFloat() / total else 0f,
-                bellFractions = bellFractions,
-                modifier = Modifier.size(280.dp),
-            )
-            Text(
-                text = formatTime(remaining),
-                style = MaterialTheme.typography.displayLarge,
-                textAlign = TextAlign.Center,
-            )
-        }
-
-        if (isPaused) {
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "Paused",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Sound/vibrate toggle in top-right corner
+        IconButton(
+            onClick = onToggleVibrateOnly,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp),
+        ) {
+            Icon(
+                imageVector = if (vibrateOnly) Icons.AutoMirrored.Filled.VolumeOff
+                    else Icons.AutoMirrored.Filled.VolumeUp,
+                contentDescription = if (vibrateOnly) "Sound off (vibrate only)" else "Sound on",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        Spacer(Modifier.height(48.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            if (isPaused) {
-                FilledTonalIconButton(
-                    onClick = onResume,
-                    modifier = Modifier.size(64.dp),
-                ) {
-                    Icon(Icons.Default.PlayArrow, "Resume", modifier = Modifier.size(32.dp))
-                }
-            } else {
-                FilledTonalIconButton(
-                    onClick = onPause,
-                    modifier = Modifier.size(64.dp),
-                ) {
-                    Icon(Icons.Default.Pause, "Pause", modifier = Modifier.size(32.dp))
-                }
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                TimerCircle(
+                    progress = if (total > 0) remaining.toFloat() / total else 0f,
+                    bellFractions = bellFractions,
+                    modifier = Modifier.size(280.dp),
+                )
+                Text(
+                    text = formatTime(remaining),
+                    style = MaterialTheme.typography.displayLarge,
+                    textAlign = TextAlign.Center,
+                )
             }
-            FilledTonalIconButton(
-                onClick = onStop,
-                modifier = Modifier.size(64.dp),
-            ) {
-                Icon(Icons.Default.Stop, "Stop", modifier = Modifier.size(32.dp))
+
+            if (isPaused) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Paused",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Spacer(Modifier.height(48.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                if (isPaused) {
+                    FilledTonalIconButton(
+                        onClick = onResume,
+                        modifier = Modifier.size(64.dp),
+                    ) {
+                        Icon(Icons.Default.PlayArrow, "Resume", modifier = Modifier.size(32.dp))
+                    }
+                } else {
+                    FilledTonalIconButton(
+                        onClick = onPause,
+                        modifier = Modifier.size(64.dp),
+                    ) {
+                        Icon(Icons.Default.Pause, "Pause", modifier = Modifier.size(32.dp))
+                    }
+                }
+                FilledTonalIconButton(
+                    onClick = onStop,
+                    modifier = Modifier.size(64.dp),
+                ) {
+                    Icon(Icons.Default.Stop, "Stop", modifier = Modifier.size(32.dp))
+                }
             }
         }
     }

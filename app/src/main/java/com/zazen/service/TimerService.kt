@@ -72,11 +72,19 @@ class TimerService : Service() {
         private val _timerState = MutableStateFlow<TimerState>(TimerState.Idle)
         val timerState: StateFlow<TimerState> = _timerState.asStateFlow()
 
+        private val _vibrateOnly = MutableStateFlow(false)
+        val vibrateOnly: StateFlow<Boolean> = _vibrateOnly.asStateFlow()
+
         var currentConfig: TimerConfig? = null
             private set
 
+        fun toggleVibrateOnly() {
+            _vibrateOnly.value = !_vibrateOnly.value
+        }
+
         fun resetState() {
             _timerState.value = TimerState.Idle
+            _vibrateOnly.value = false
             currentConfig = null
         }
     }
@@ -113,6 +121,7 @@ class TimerService : Service() {
 
     private fun startTimer(config: TimerConfig) {
         currentConfig = config
+        _vibrateOnly.value = config.vibrateOnly
         totalDurationMillis = config.durationMillis
         bells = config.bells.sortedBy { it.triggerAtMillis }
         nextBellIndex = 0
@@ -170,7 +179,7 @@ class TimerService : Service() {
         // Fire any bells whose trigger time has passed
         while (nextBellIndex < bells.size && bells[nextBellIndex].triggerAtMillis <= elapsed) {
             val bell = bells[nextBellIndex]
-            val useVibrate = bell.vibrateOnly || (currentConfig?.vibrateOnly == true)
+            val useVibrate = bell.vibrateOnly || _vibrateOnly.value
             if (useVibrate) soundPlayer.vibrate() else soundPlayer.playFull(bell.soundResId, volume)
             nextBellIndex++
         }
@@ -187,7 +196,7 @@ class TimerService : Service() {
         handler.removeCallbacks(tickRunnable)
         val config = currentConfig
 
-        if (config?.vibrateOnly == true) {
+        if (_vibrateOnly.value) {
             soundPlayer.vibrate(strong = true)
         } else {
             soundPlayer.playFull(config?.endSoundResId ?: R.raw.bell, config?.bellVolume ?: 1f)
