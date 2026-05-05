@@ -70,10 +70,11 @@ fun TimerScreen(
 
     val isActive = state is TimerState.Running || state is TimerState.Paused
 
-    // Keep screen on while timer is active
+    // Keep screen on while timer is active (if preference enabled)
     val view = LocalView.current
-    DisposableEffect(isActive) {
-        view.keepScreenOn = isActive
+    val keepScreenOn = viewModel.screenAlwaysOn
+    DisposableEffect(isActive, keepScreenOn) {
+        view.keepScreenOn = isActive && keepScreenOn
         onDispose { view.keepScreenOn = false }
     }
 

@@ -28,6 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Brightness7
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoNotDisturbOn
 import androidx.compose.material.icons.filled.Edit
@@ -92,6 +93,7 @@ fun SetupScreen(
     val bellVolume by viewModel.bellVolume.collectAsState()
     val endSound by viewModel.endSound.collectAsState()
     val dndEnabled by viewModel.dndEnabled.collectAsState()
+    val screenAlwaysOn by viewModel.screenAlwaysOn.collectAsState()
     val bells by viewModel.bells.collectAsState()
     val presets by viewModel.presets.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
@@ -289,6 +291,22 @@ fun SetupScreen(
                     Text("Do Not Disturb")
                 }
                 Switch(checked = dndEnabled, onCheckedChange = { viewModel.toggleDnd() })
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // --- Screen Always On toggle ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Brightness7, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Screen Always On")
+                }
+                Switch(checked = screenAlwaysOn, onCheckedChange = { viewModel.toggleScreenAlwaysOn() })
             }
 
             Spacer(Modifier.height(16.dp))

@@ -1,0 +1,1 @@
+Summary written to `.windfall/stages/summarize.md`. It covers the full recipe: 5 files changed, the approach (conditional `keepScreenOn` gated by SharedPreferences), key decisions (default true, no permissions needed, not in presets), and verification results.

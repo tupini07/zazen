@@ -45,6 +45,9 @@ class SetupViewModel @Inject constructor(
     private val _dndEnabled = MutableStateFlow(prefs.dndEnabled)
     val dndEnabled: StateFlow<Boolean> = _dndEnabled.asStateFlow()
 
+    private val _screenAlwaysOn = MutableStateFlow(prefs.screenAlwaysOn)
+    val screenAlwaysOn: StateFlow<Boolean> = _screenAlwaysOn.asStateFlow()
+
     private val _bells = MutableStateFlow<List<IntervalBell>>(emptyList())
     val bells: StateFlow<List<IntervalBell>> = _bells.asStateFlow()
 
@@ -106,6 +109,11 @@ class SetupViewModel @Inject constructor(
     fun toggleDnd() {
         _dndEnabled.value = !_dndEnabled.value
         prefs.dndEnabled = _dndEnabled.value
+    }
+
+    fun toggleScreenAlwaysOn() {
+        _screenAlwaysOn.value = !_screenAlwaysOn.value
+        prefs.screenAlwaysOn = _screenAlwaysOn.value
     }
 
     fun addBell(triggerAtMinutes: Int, sound: Sound) {

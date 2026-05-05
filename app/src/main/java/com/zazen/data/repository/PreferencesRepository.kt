@@ -48,6 +48,10 @@ class PreferencesRepository @Inject constructor(
         get() = prefs.getBoolean("dnd_enabled", false)
         set(value) = prefs.edit().putBoolean("dnd_enabled", value).apply()
 
+    var screenAlwaysOn: Boolean
+        get() = prefs.getBoolean("screen_always_on", true)
+        set(value) = prefs.edit().putBoolean("screen_always_on", value).apply()
+
     // Theme mode: "system", "light", "dark"
     private val _themeMode = MutableStateFlow(
         prefs.getString("theme_mode", "system") ?: "system"

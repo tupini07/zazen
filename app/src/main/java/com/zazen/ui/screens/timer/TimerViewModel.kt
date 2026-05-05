@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zazen.data.model.TimerConfig
 import com.zazen.data.model.TimerState
+import com.zazen.data.repository.PreferencesRepository
 import com.zazen.data.repository.SessionRepository
 import com.zazen.service.TimerManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,10 +16,12 @@ import javax.inject.Inject
 class TimerViewModel @Inject constructor(
     private val timerManager: TimerManager,
     private val sessionRepository: SessionRepository,
+    private val prefs: PreferencesRepository,
 ) : ViewModel() {
 
     val state: StateFlow<TimerState> = timerManager.state
     val config: TimerConfig? get() = timerManager.config
+    val screenAlwaysOn: Boolean get() = prefs.screenAlwaysOn
 
     fun pause() = timerManager.pause()
     fun resume() = timerManager.resume()
