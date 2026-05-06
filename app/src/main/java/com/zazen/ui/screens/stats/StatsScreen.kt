@@ -32,12 +32,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -187,7 +184,7 @@ fun StatsScreen(
                                 },
                             )
                         } else {
-                            DismissibleSessionItem(
+                            SessionItem(
                                 session = session,
                                 onDelete = { sessionToDelete = session },
                                 onTap = { sessionToEdit = session },
@@ -283,49 +280,6 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DismissibleSessionItem(
-    session: MeditationSession,
-    onDelete: () -> Unit,
-    onTap: () -> Unit,
-    onLongPress: () -> Unit,
-) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onDelete()
-                false // don't auto-dismiss; let the dialog confirm first
-            } else false
-        },
-    )
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.CenterEnd,
-            ) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            }
-        },
-        enableDismissFromStartToEnd = false,
-    ) {
-        SessionItem(
-            session = session,
-            onDelete = onDelete,
-            onTap = onTap,
-            onLongPress = onLongPress,
-        )
     }
 }
 
