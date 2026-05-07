@@ -97,18 +97,21 @@ fun TimerScreen(
         }
     }
 
-    // Warn if alarm volume is muted and we're not in vibrate-only mode.
+    // Warn if alarm volume is muted or low and we're not in vibrate-only mode.
     // Fires once per session start (when transitioning into Running).
     LaunchedEffect(isActive) {
         if (isActive && !vibrateOnly) {
             val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
             val vol = am?.getStreamVolume(AudioManager.STREAM_ALARM) ?: -1
-            if (vol == 0) {
-                Toast.makeText(
-                    context,
-                    "Alarm volume is muted — bell won't be audible",
-                    Toast.LENGTH_LONG,
-                ).show()
+            val maxVol = am?.getStreamMaxVolume(AudioManager.STREAM_ALARM) ?: 0
+            val pct = if (maxVol > 0) vol.toFloat() / maxVol else 1f
+            val msg = when {
+                vol == 0 -> "Alarm volume is muted — bell won't be audible"
+                pct < 0.2f -> "Alarm volume is low — you might not hear the bell"
+                else -> null
+            }
+            if (msg != null) {
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
             }
         }
     }
