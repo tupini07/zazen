@@ -1,6 +1,10 @@
 package com.zazen.ui.screens.timer
 
 import android.app.Activity
+import android.content.Context
+import android.media.AudioManager
+import android.view.WindowManager
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +48,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -74,12 +79,38 @@ fun TimerScreen(
 
     val isActive = state is TimerState.Running || state is TimerState.Paused
 
-    // Keep screen on while timer is active (if preference enabled)
+    // Keep screen on while timer is active (if preference enabled).
+    // Use the canonical Window flag rather than View.keepScreenOn — the latter
+    // can be reset by sibling view-tree changes (e.g. immersive-mode toggle).
     val view = LocalView.current
+    val context = LocalContext.current
     val keepScreenOn = viewModel.screenAlwaysOn
     DisposableEffect(isActive, keepScreenOn) {
-        view.keepScreenOn = isActive && keepScreenOn
-        onDispose { view.keepScreenOn = false }
+        val window = (view.context as Activity).window
+        if (isActive && keepScreenOn) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // Warn if alarm volume is muted and we're not in vibrate-only mode.
+    // Fires once per session start (when transitioning into Running).
+    LaunchedEffect(isActive) {
+        if (isActive && !vibrateOnly) {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            val vol = am?.getStreamVolume(AudioManager.STREAM_ALARM) ?: -1
+            if (vol == 0) {
+                Toast.makeText(
+                    context,
+                    "Alarm volume is muted — bell won't be audible",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
     }
 
     // Immersive mode only during active meditation (not on Finished screen)
