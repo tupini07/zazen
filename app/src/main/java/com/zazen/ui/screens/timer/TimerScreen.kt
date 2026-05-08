@@ -2,6 +2,7 @@ package com.zazen.ui.screens.timer
 
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.media.AudioManager
 import android.view.WindowManager
 import android.widget.Toast
@@ -56,6 +57,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.zazen.data.model.TimerState
 import kotlin.math.cos
 import kotlin.math.sin
@@ -79,21 +83,59 @@ fun TimerScreen(
 
     val isActive = state is TimerState.Running || state is TimerState.Paused
 
-    // Keep screen on while timer is active (if preference enabled).
-    // Use the canonical Window flag rather than View.keepScreenOn — the latter
-    // can be reset by sibling view-tree changes (e.g. immersive-mode toggle).
     val view = LocalView.current
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val keepScreenOn = viewModel.screenAlwaysOn
+
+    // Combined window-state effect: enter immersive mode FIRST, then apply the
+    // FLAG_KEEP_SCREEN_ON flag. Doing it in this order matters because the OS
+    // can re-apply window attributes when system bar visibility changes, which
+    // may clear FLAG_KEEP_SCREEN_ON if it was set first. We also re-apply the
+    // flag on every ON_RESUME as a defensive measure (some OEMs and lifecycle
+    // transitions can drop it).
     DisposableEffect(isActive, keepScreenOn) {
-        val window = (view.context as Activity).window
-        if (isActive && keepScreenOn) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        } else {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val activity = context.findActivity()
+        val window = activity?.window
+        val controller = window?.let { WindowInsetsControllerCompat(it, view) }
+
+        fun applyKeepScreenOn() {
+            if (window == null) return
+            if (isActive && keepScreenOn) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
         }
+
+        // 1. Toggle immersive mode
+        if (isActive) {
+            controller?.hide(WindowInsetsCompat.Type.systemBars())
+            controller?.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+            view.requestApplyInsets()
+        }
+
+        // 2. Apply keep-screen-on AFTER the immersive toggle so it can't be
+        //    clobbered by the system bar visibility change.
+        applyKeepScreenOn()
+
+        // 3. Re-assert on every resume — handles cases where the flag is dropped
+        //    after switching apps, locking and unlocking, etc.
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                applyKeepScreenOn()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+
         onDispose {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+            view.requestApplyInsets()
         }
     }
 
@@ -113,24 +155,6 @@ fun TimerScreen(
             if (msg != null) {
                 Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
             }
-        }
-    }
-
-    // Immersive mode only during active meditation (not on Finished screen)
-    DisposableEffect(isActive) {
-        val window = (view.context as Activity).window
-        val controller = WindowInsetsControllerCompat(window, view)
-        if (isActive) {
-            controller.hide(WindowInsetsCompat.Type.systemBars())
-            controller.systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        } else {
-            controller.show(WindowInsetsCompat.Type.systemBars())
-            view.requestApplyInsets()
-        }
-        onDispose {
-            controller.show(WindowInsetsCompat.Type.systemBars())
-            view.requestApplyInsets()
         }
     }
 
@@ -430,4 +454,10 @@ private fun formatTime(millis: Long): String {
     val seconds = totalSeconds % 60
     return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds)
     else "%02d:%02d".format(minutes, seconds)
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
