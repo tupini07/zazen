@@ -15,4 +15,10 @@ class PresetRepository @Inject constructor(
     suspend fun save(preset: Preset): Long = presetDao.insert(preset)
 
     suspend fun delete(preset: Preset) = presetDao.delete(preset)
+
+    /** Replaces all stored presets with [presets], used when restoring a backup. */
+    suspend fun replaceAll(presets: List<Preset>) {
+        presetDao.deleteAll()
+        if (presets.isNotEmpty()) presetDao.insertAll(presets)
+    }
 }

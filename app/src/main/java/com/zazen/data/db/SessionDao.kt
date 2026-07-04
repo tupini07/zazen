@@ -2,6 +2,7 @@ package com.zazen.data.db
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.zazen.data.model.MeditationSession
 import kotlinx.coroutines.flow.Flow
@@ -11,8 +12,14 @@ interface SessionDao {
     @Insert
     suspend fun insert(session: MeditationSession): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(sessions: List<MeditationSession>)
+
     @Query("DELETE FROM sessions WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM sessions")
+    suspend fun deleteAll()
 
     @Query("UPDATE sessions SET notes = :notes WHERE id = :id")
     suspend fun updateNotes(id: Long, notes: String)
