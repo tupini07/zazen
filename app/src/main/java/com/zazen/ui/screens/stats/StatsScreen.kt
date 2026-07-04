@@ -1,5 +1,7 @@
 package com.zazen.ui.screens.stats
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -21,7 +23,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,12 +71,27 @@ fun StatsScreen(
     val sessionCount by viewModel.sessionCount.collectAsState()
     var sessionToDelete by remember { mutableStateOf<MeditationSession?>(null) }
     var sessionToEdit by remember { mutableStateOf<MeditationSession?>(null) }
+    var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
     // Multi-select state
     var selectedIds by remember { mutableStateOf(emptySet<Long>()) }
     val selectionMode = selectedIds.isNotEmpty()
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri -> uri?.let { viewModel.exportBackup(it) } }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let { pendingImportUri = it } }
+
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -111,6 +131,14 @@ fun StatsScreen(
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { exportLauncher.launch(backupFileName()) }) {
+                            Icon(Icons.Default.Download, "Export backup")
+                        }
+                        IconButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
+                            Icon(Icons.Default.Upload, "Restore backup")
                         }
                     },
                 )
@@ -224,6 +252,33 @@ fun StatsScreen(
             },
         )
     }
+
+    pendingImportUri?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingImportUri = null },
+            title = { Text("Restore backup?") },
+            text = {
+                Text(
+                    "This will replace all current presets and session history " +
+                        "(including notes) with the contents of the backup file.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.importBackup(uri)
+                    pendingImportUri = null
+                }) { Text("Restore") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImportUri = null }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+private fun backupFileName(): String {
+    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+    return "zazen_backup_$timestamp.json"
 }
 
 @Composable
