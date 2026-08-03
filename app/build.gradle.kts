@@ -16,9 +16,10 @@ android {
         minSdk = 26
         targetSdk = 34
 
-        val buildTimestamp = System.getenv("BUILD_TIMESTAMP")
-        versionCode = buildTimestamp?.toIntOrNull() ?: 1
-        versionName = System.getenv("BUILD_VERSION_NAME") ?: "dev"
+        // Keep these literal: F-Droid parses them straight out of this file to
+        // detect new releases. Scheme is major * 10000 + minor * 100 + patch.
+        versionCode = 10406
+        versionName = "1.4.6"
     }
 
     signingConfigs {
