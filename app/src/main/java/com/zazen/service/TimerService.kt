@@ -58,6 +58,9 @@ class TimerService : Service() {
     /** Guards against the session being ended twice while teardown is in flight. */
     private var finishing = false
 
+    /** Whole second last shown in the notification; used to throttle re-posts. */
+    private var lastNotifiedSecond = -1L
+
     private val tickRunnable = object : Runnable {
         override fun run() {
             tick()
@@ -140,6 +143,7 @@ class TimerService : Service() {
         // First repeat lands one full interval in, not at t=0
         nextRepeatAtMillis = repeatEveryMillis
         accumulatedPauseMillis = 0
+        lastNotifiedSecond = -1
         finishing = false
         startedAtRealtime = SystemClock.elapsedRealtime()
 
@@ -333,9 +337,9 @@ class TimerService : Service() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Timer",
+            getString(R.string.notification_channel_name),
             NotificationManager.IMPORTANCE_LOW,
-        ).apply { description = "Active meditation timer" }
+        ).apply { description = getString(R.string.notification_channel_description) }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
@@ -347,7 +351,7 @@ class TimerService : Service() {
         )
 
         val pauseAction = NotificationCompat.Action.Builder(
-            null, "Pause",
+            null, getString(R.string.timer_cd_pause),
             PendingIntent.getService(
                 this, 1,
                 Intent(this, TimerService::class.java).apply { action = ACTION_PAUSE },
@@ -356,7 +360,7 @@ class TimerService : Service() {
         ).build()
 
         val stopAction = NotificationCompat.Action.Builder(
-            null, "Stop",
+            null, getString(R.string.timer_cd_stop),
             PendingIntent.getService(
                 this, 2,
                 Intent(this, TimerService::class.java).apply { action = ACTION_STOP },
@@ -366,17 +370,26 @@ class TimerService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Zazen")
-            .setContentText("Meditating — ${formatTime(displayMillis)}")
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.notification_text, formatTime(displayMillis)))
             .setContentIntent(contentIntent)
             .addAction(pauseAction)
             .addAction(stopAction)
             .setOngoing(true)
             .setSilent(true)
+            .setOnlyAlertOnce(true)
             .build()
     }
 
+    /**
+     * The timer ticks four times a second, but the notification only shows whole
+     * seconds. Re-posting on every tick just floods the notification manager (and
+     * the accessibility event stream), so collapse it to at most 1 Hz.
+     */
     private fun updateNotification(displayMillis: Long) {
+        val second = displayMillis / 1000
+        if (second == lastNotifiedSecond) return
+        lastNotifiedSecond = second
         getSystemService(NotificationManager::class.java)
             .notify(NOTIFICATION_ID, buildNotification(displayMillis))
     }

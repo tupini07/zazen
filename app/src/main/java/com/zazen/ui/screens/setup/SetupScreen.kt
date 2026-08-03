@@ -11,13 +11,18 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -76,12 +81,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.zazen.R
 import com.zazen.data.model.IntervalBell
 import com.zazen.data.model.Preset
 import com.zazen.data.model.Sound
@@ -156,13 +171,13 @@ fun SetupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Zazen") },
+                title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     IconButton(onClick = { showThemePicker = true }) {
-                        Icon(Icons.Default.Palette, "Theme")
+                        Icon(Icons.Default.Palette, stringResource(R.string.setup_cd_theme))
                     }
                     IconButton(onClick = onNavigateToStats) {
-                        Icon(Icons.Default.History, "Stats")
+                        Icon(Icons.Default.History, stringResource(R.string.setup_cd_stats))
                     }
                 },
             )
@@ -186,9 +201,20 @@ fun SetupScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     presets.forEach { preset ->
+                        val deleteLabel = stringResource(R.string.preset_cd_delete, preset.name)
                         FilterChip(
                             selected = false,
                             onClick = { viewModel.loadPreset(preset) },
+                            // Deleting via the tiny trailing icon is impractical with a
+                            // screen reader, so expose it as a custom action on the chip.
+                            modifier = Modifier.semantics {
+                                customActions = listOf(
+                                    CustomAccessibilityAction(deleteLabel) {
+                                        presetToDelete = preset
+                                        true
+                                    },
+                                )
+                            },
                             label = {
                                 Text(
                                     preset.name,
@@ -197,13 +223,19 @@ fun SetupScreen(
                                 )
                             },
                             trailingIcon = {
-                                Icon(
-                                    Icons.Default.Close,
-                                    "Delete",
+                                Box(
                                     modifier = Modifier
-                                        .size(16.dp)
+                                        .size(32.dp)
+                                        .clearAndSetSemantics { }
                                         .clickable { presetToDelete = preset },
-                                )
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
                             },
                         )
                     }
@@ -218,50 +250,71 @@ fun SetupScreen(
                     selected = !openEnded,
                     onClick = { viewModel.setOpenEnded(false) },
                     shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                ) { Text("Timed") }
+                ) { Text(stringResource(R.string.mode_timed)) }
                 SegmentedButton(
                     selected = openEnded,
                     onClick = { viewModel.setOpenEnded(true) },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                ) { Text("Open") }
+                ) { Text(stringResource(R.string.mode_open)) }
             }
 
             Spacer(Modifier.height(16.dp))
 
             // --- Duration picker ---
+            Text(
+                stringResource(R.string.duration_label),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(Modifier.height(8.dp))
             if (openEnded) {
-                Text("Duration", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
+                val unlimitedLabel = stringResource(R.string.duration_cd_unlimited)
                 Text(
-                    text = "∞",
+                    text = stringResource(R.string.duration_unlimited_symbol),
                     style = MaterialTheme.typography.displayMedium,
+                    // "∞" is read inconsistently (or skipped) by TTS engines.
+                    modifier = Modifier.clearAndSetSemantics {
+                        contentDescription = unlimitedLabel
+                    },
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Counts up until you stop — the closing bell rings when you do",
+                    stringResource(R.string.duration_open_ended_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
             } else {
-                Text("Duration", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
+                val spoken = spokenDuration(durationSeconds)
+                val editLabel = stringResource(R.string.duration_action_edit)
                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                 ) {
                     IconButton(onClick = { viewModel.decrementDuration() }) {
-                        Icon(Icons.Default.Remove, "Less")
+                        Icon(
+                            Icons.Default.Remove,
+                            stringResource(R.string.duration_cd_decrease),
+                        )
                     }
                     Text(
                         text = formatDuration(durationSeconds),
                         style = MaterialTheme.typography.displayMedium,
                         modifier = Modifier
+                            .clickable(
+                                onClickLabel = editLabel,
+                                role = Role.Button,
+                            ) { showDurationEditor = true }
                             .padding(horizontal = 16.dp)
-                            .clickable { showDurationEditor = true },
+                            .semantics { contentDescription = spoken },
                     )
                     IconButton(onClick = { viewModel.incrementDuration() }) {
-                        Icon(Icons.Default.Add, "More")
+                        Icon(
+                            Icons.Default.Add,
+                            stringResource(R.string.duration_cd_increase),
+                        )
                     }
                 }
             }
@@ -278,20 +331,34 @@ fun SetupScreen(
             Spacer(Modifier.height(16.dp))
 
             // --- Bell volume ---
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Bell Volume", modifier = Modifier.width(100.dp))
+            // Stacked rather than a fixed-width label + slider row so it survives
+            // large font scales.
+            val volumePercent = (bellVolume * 100).toInt()
+            val volumeLabel = stringResource(R.string.bell_volume_label)
+            val volumeState = stringResource(R.string.bell_volume_percent, volumePercent)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(volumeLabel)
+                    Text(
+                        volumeState,
+                        style = MaterialTheme.typography.bodySmall,
+                        // The slider already announces the percentage.
+                        modifier = Modifier.clearAndSetSemantics { },
+                    )
+                }
                 Slider(
                     value = bellVolume,
                     onValueChange = { viewModel.setBellVolume(it) },
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    "${(bellVolume * 100).toInt()}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.width(40.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            contentDescription = volumeLabel
+                            stateDescription = volumeState
+                        },
                 )
             }
 
@@ -299,87 +366,145 @@ fun SetupScreen(
 
             // --- Vibrate toggle ---
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = vibrateOnly,
+                        role = Role.Switch,
+                        onValueChange = { viewModel.toggleVibrateOnly() },
+                    )
+                    .heightIn(min = 48.dp)
+                    .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Icon(
                         if (vibrateOnly) Icons.Default.Vibration else Icons.AutoMirrored.Filled.VolumeUp,
                         contentDescription = null,
                     )
                     Spacer(Modifier.width(8.dp))
                     Column {
-                        Text("Vibrate")
+                        Text(stringResource(R.string.toggle_vibrate_title))
                         Text(
-                            "Vibrate instead of playing sounds",
+                            stringResource(R.string.toggle_vibrate_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
-                Switch(checked = vibrateOnly, onCheckedChange = { viewModel.toggleVibrateOnly() })
+                Switch(checked = vibrateOnly, onCheckedChange = null)
             }
 
             Spacer(Modifier.height(8.dp))
 
             // --- Do Not Disturb toggle ---
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = dndEnabled,
+                        role = Role.Switch,
+                        onValueChange = { viewModel.toggleDnd() },
+                    )
+                    .heightIn(min = 48.dp)
+                    .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Icon(Icons.Default.DoNotDisturbOn, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Do Not Disturb")
+                    Text(stringResource(R.string.toggle_dnd_title))
                 }
-                Switch(checked = dndEnabled, onCheckedChange = { viewModel.toggleDnd() })
+                Switch(checked = dndEnabled, onCheckedChange = null)
             }
 
             Spacer(Modifier.height(8.dp))
 
             // --- Screen Always On toggle ---
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = screenAlwaysOn,
+                        role = Role.Switch,
+                        onValueChange = { viewModel.toggleScreenAlwaysOn() },
+                    )
+                    .heightIn(min = 48.dp)
+                    .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Icon(Icons.Default.Brightness7, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Screen Always On")
+                    Text(stringResource(R.string.toggle_screen_on_title))
                 }
-                Switch(checked = screenAlwaysOn, onCheckedChange = { viewModel.toggleScreenAlwaysOn() })
+                Switch(checked = screenAlwaysOn, onCheckedChange = null)
             }
 
             Spacer(Modifier.height(16.dp))
 
             // --- Repeating bell ---
+            // The whole row is the target so the trailing label isn't a separate,
+            // unlabelled ("Set") focus stop.
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        onClickLabel = stringResource(R.string.repeat_bell_cd_configure),
+                        role = Role.Button,
+                    ) { showRepeatEditor = true }
+                    .heightIn(min = 48.dp)
+                    .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Icon(Icons.Default.Repeat, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Column {
-                        Text("Repeating Bell")
+                        Text(stringResource(R.string.repeat_bell_title))
                         Text(
                             if (repeatEverySeconds > 0) {
-                                "Every ${formatDuration(repeatEverySeconds)} · ${repeatSound.displayName}"
+                                stringResource(
+                                    R.string.repeat_bell_summary,
+                                    formatDuration(repeatEverySeconds),
+                                    stringResource(repeatSound.displayNameRes),
+                                )
                             } else {
-                                "Off"
+                                stringResource(R.string.repeat_bell_off)
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
-                TextButton(onClick = { showRepeatEditor = true }) {
-                    Text(if (repeatEverySeconds > 0) "Change" else "Set")
-                }
+                Text(
+                    if (repeatEverySeconds > 0) {
+                        stringResource(R.string.action_change)
+                    } else {
+                        stringResource(R.string.action_set)
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clearAndSetSemantics { }
+                        .padding(horizontal = 12.dp),
+                )
             }
 
             Spacer(Modifier.height(16.dp))
@@ -390,16 +515,19 @@ fun SetupScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Interval Bells", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.interval_bells_label),
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 TextButton(onClick = { showAddBellDialog = true }) {
                     Icon(Icons.Default.Add, null, modifier = Modifier.padding(end = 4.dp))
-                    Text("Add")
+                    Text(stringResource(R.string.action_add))
                 }
             }
 
             if (bells.isEmpty()) {
                 Text(
-                    "No interval bells — tap Add to schedule bells within your session",
+                    stringResource(R.string.interval_bells_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp),
@@ -422,7 +550,7 @@ fun SetupScreen(
             // --- Save preset ---
             AssistChip(
                 onClick = { showSavePresetDialog = true },
-                label = { Text("Save as Preset") },
+                label = { Text(stringResource(R.string.preset_save_chip)) },
                 leadingIcon = { Icon(Icons.Default.Save, null, modifier = Modifier.size(18.dp)) },
             )
 
@@ -434,12 +562,15 @@ fun SetupScreen(
                 onClick = { attemptStart() },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
+                    .heightIn(min = 56.dp),
                 shape = RoundedCornerShape(16.dp),
             ) {
                 Icon(Icons.Default.PlayArrow, null)
                 Spacer(Modifier.width(8.dp))
-                Text("Start", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.action_start),
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
 
             Spacer(Modifier.height(24.dp))
@@ -506,20 +637,19 @@ fun SetupScreen(
     if (showVolumeWarning) {
         AlertDialog(
             onDismissRequest = { showVolumeWarning = false },
-            title = { Text("Volume is muted") },
-            text = {
-                Text("Your alarm volume is at zero — bells won't be audible. " +
-                    "Raise the volume or enable vibrate mode.")
-            },
+            title = { Text(stringResource(R.string.volume_muted_title)) },
+            text = { Text(stringResource(R.string.volume_muted_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     showVolumeWarning = false
                     viewModel.startTimer()
                     onStartTimer()
-                }) { Text("Start Anyway") }
+                }) { Text(stringResource(R.string.action_start_anyway)) }
             },
             dismissButton = {
-                TextButton(onClick = { showVolumeWarning = false }) { Text("Cancel") }
+                TextButton(onClick = { showVolumeWarning = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             },
         )
     }
@@ -527,16 +657,18 @@ fun SetupScreen(
     presetToDelete?.let { preset ->
         AlertDialog(
             onDismissRequest = { presetToDelete = null },
-            title = { Text("Delete preset?") },
-            text = { Text("Delete \"${preset.name}\"?") },
+            title = { Text(stringResource(R.string.preset_delete_title)) },
+            text = { Text(stringResource(R.string.preset_delete_message, preset.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deletePreset(preset)
                     presetToDelete = null
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { presetToDelete = null }) { Text("Cancel") }
+                TextButton(onClick = { presetToDelete = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             },
         )
     }
@@ -558,22 +690,27 @@ private fun ThemePickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Theme") },
+        title = { Text(stringResource(R.string.theme_title)) },
         text = {
-            Column {
+            Column(modifier = Modifier.selectableGroup()) {
                 listOf(
-                    "system" to "System default",
-                    "light" to "Light",
-                    "dark" to "Dark",
+                    "system" to stringResource(R.string.theme_system),
+                    "light" to stringResource(R.string.theme_light),
+                    "dark" to stringResource(R.string.theme_dark),
                 ).forEach { (value, label) ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onSelect(value) }
+                            .selectable(
+                                selected = currentMode == value,
+                                role = Role.RadioButton,
+                                onClick = { onSelect(value) },
+                            )
+                            .heightIn(min = 48.dp)
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(selected = currentMode == value, onClick = { onSelect(value) })
+                        RadioButton(selected = currentMode == value, onClick = null)
                         Spacer(Modifier.width(8.dp))
                         Text(label)
                     }
@@ -581,7 +718,9 @@ private fun ThemePickerDialog(
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
+        },
     )
 }
 
@@ -593,21 +732,24 @@ private fun EndBellSelector(
     onPreview: (Sound) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val selectedName = stringResource(selected.displayNameRes)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("End Bell", modifier = Modifier.width(80.dp))
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = it },
             modifier = Modifier.weight(1f),
         ) {
             OutlinedTextField(
-                value = selected.displayName,
+                value = selectedName,
                 onValueChange = {},
                 readOnly = true,
+                // Labelling the field itself replaces the detached fixed-width
+                // "End Bell" text, which clipped at large font scales.
+                label = { Text(stringResource(R.string.end_bell_label)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                 modifier = Modifier
                     .menuAnchor(MenuAnchorType.PrimaryNotEditable)
@@ -620,7 +762,7 @@ private fun EndBellSelector(
             ) {
                 Sound.entries.forEach { sound ->
                     DropdownMenuItem(
-                        text = { Text(sound.displayName) },
+                        text = { Text(stringResource(sound.displayNameRes)) },
                         onClick = {
                             onSelect(sound)
                             expanded = false
@@ -630,13 +772,21 @@ private fun EndBellSelector(
             }
         }
         IconButton(onClick = { onPreview(selected) }) {
-            Icon(Icons.Default.PlayCircle, "Preview bell")
+            Icon(
+                Icons.Default.PlayCircle,
+                stringResource(R.string.end_bell_cd_preview),
+            )
         }
     }
 }
 
 @Composable
 private fun BellItem(bell: IntervalBell, onEdit: () -> Unit, onRemove: () -> Unit, onPreview: () -> Unit) {
+    val timeLabel = formatBellTime(bell.triggerAtMillis)
+    val soundName = Sound.fromResId(bell.soundResId)
+        ?.let { stringResource(it.displayNameRes) }
+        ?: stringResource(R.string.sound_unknown)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -648,22 +798,37 @@ private fun BellItem(bell: IntervalBell, onEdit: () -> Unit, onRemove: () -> Uni
         ) {
             Icon(Icons.Default.Notifications, null)
             Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(formatBellTime(bell.triggerAtMillis))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics(mergeDescendants = true) { },
+            ) {
+                Text(timeLabel)
                 Text(
-                    Sound.fromResId(bell.soundResId)?.displayName ?: "Unknown",
+                    soundName,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             IconButton(onClick = onPreview) {
-                Icon(Icons.Default.PlayCircle, "Preview", modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Default.PlayCircle,
+                    stringResource(R.string.interval_bell_cd_preview, timeLabel),
+                    modifier = Modifier.size(20.dp),
+                )
             }
             IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, "Edit", modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Default.Edit,
+                    stringResource(R.string.interval_bell_cd_edit, timeLabel),
+                    modifier = Modifier.size(20.dp),
+                )
             }
             IconButton(onClick = onRemove) {
-                Icon(Icons.Default.Close, "Remove")
+                Icon(
+                    Icons.Default.Close,
+                    stringResource(R.string.interval_bell_cd_remove, timeLabel),
+                )
             }
         }
     }
@@ -686,59 +851,102 @@ private fun AddBellDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isEditing) "Edit Interval Bell" else "Add Interval Bell") },
+        title = {
+            Text(
+                if (isEditing) stringResource(R.string.bell_dialog_edit_title)
+                else stringResource(R.string.bell_dialog_add_title)
+            )
+        },
         text = {
-            Column {
-                Text("Time from start")
+            val timeLabel = stringResource(R.string.bell_time_from_start)
+            val minutes = sliderValue.toInt()
+            val spokenMinutes = pluralStringResource(R.plurals.minutes, minutes, minutes)
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(timeLabel)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "${sliderValue.toInt()} min",
+                    pluralStringResource(R.plurals.minutes_short, minutes, minutes),
                     style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.clearAndSetSemantics { },
                 )
                 Slider(
                     value = sliderValue,
                     onValueChange = { sliderValue = it },
                     valueRange = 1f..maxMinutes.toFloat(),
                     steps = (maxMinutes - 2).coerceAtLeast(0),
+                    modifier = Modifier.semantics {
+                        contentDescription = timeLabel
+                        stateDescription = spokenMinutes
+                    },
                 )
 
                 Spacer(Modifier.height(16.dp))
-                Text("Sound", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.sound_label),
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Spacer(Modifier.height(8.dp))
 
-                Sound.entries.forEach { sound ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedSound = sound }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = selectedSound == sound,
-                            onClick = { selectedSound = sound },
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(sound.displayName, modifier = Modifier.weight(1f))
-                        IconButton(
-                            onClick = { onPreview(sound) },
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(Icons.Default.PlayCircle, "Preview", modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
+                SoundPicker(
+                    selected = selectedSound,
+                    onSelect = { selectedSound = it },
+                    onPreview = onPreview,
+                )
             }
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(sliderValue.toInt(), selectedSound) }) {
-                Text(if (isEditing) "Save" else "Add")
+                Text(
+                    if (isEditing) stringResource(R.string.action_save)
+                    else stringResource(R.string.action_add)
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
+}
+
+/**
+ * Radio list of bell sounds with a preview button per row. Shared by the interval
+ * and repeating bell dialogs so the selection semantics and 48dp preview targets
+ * only have to be right once.
+ */
+@Composable
+private fun SoundPicker(
+    selected: Sound,
+    onSelect: (Sound) -> Unit,
+    onPreview: (Sound) -> Unit,
+) {
+    Column(modifier = Modifier.selectableGroup()) {
+        Sound.entries.forEach { sound ->
+            val name = stringResource(sound.displayNameRes)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = selected == sound,
+                        role = Role.RadioButton,
+                        onClick = { onSelect(sound) },
+                    )
+                    .heightIn(min = 48.dp)
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = selected == sound, onClick = null)
+                Spacer(Modifier.width(4.dp))
+                Text(name, modifier = Modifier.weight(1f))
+                IconButton(onClick = { onPreview(sound) }) {
+                    Icon(
+                        Icons.Default.PlayCircle,
+                        stringResource(R.string.sound_cd_preview, name),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -757,13 +965,11 @@ private fun RepeatBellDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Repeating Bell") },
+        title = { Text(stringResource(R.string.repeat_bell_title)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "Rings at a fixed interval for the whole sit. On a timed sit a " +
-                        "repeat landing on the end is skipped so it doesn't double up " +
-                        "with the closing bell.",
+                    stringResource(R.string.repeat_bell_description),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -771,48 +977,37 @@ private fun RepeatBellDialog(
                 OutlinedTextField(
                     value = minutesText,
                     onValueChange = { minutesText = it.filter { c -> c.isDigit() }.take(3) },
-                    label = { Text("Every … minutes") },
-                    placeholder = { Text("Leave empty to turn off") },
+                    label = { Text(stringResource(R.string.repeat_bell_interval_label)) },
+                    placeholder = { Text(stringResource(R.string.repeat_bell_interval_placeholder)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
 
                 Spacer(Modifier.height(16.dp))
-                Text("Sound", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.sound_label),
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Spacer(Modifier.height(8.dp))
 
-                Sound.entries.forEach { sound ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedSound = sound }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = selectedSound == sound,
-                            onClick = { selectedSound = sound },
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(sound.displayName, modifier = Modifier.weight(1f))
-                        IconButton(
-                            onClick = { onPreview(sound) },
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(Icons.Default.PlayCircle, "Preview", modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
+                SoundPicker(
+                    selected = selectedSound,
+                    onSelect = { selectedSound = it },
+                    onPreview = onPreview,
+                )
             }
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(parsedMinutes * 60, selectedSound) }) {
-                Text(if (parsedMinutes > 0) "Save" else "Turn Off")
+                Text(
+                    if (parsedMinutes > 0) stringResource(R.string.action_save)
+                    else stringResource(R.string.action_turn_off)
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
@@ -826,12 +1021,12 @@ private fun SavePresetDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Save Preset") },
+        title = { Text(stringResource(R.string.preset_save_title)) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Preset name") },
+                label = { Text(stringResource(R.string.preset_name_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -840,10 +1035,10 @@ private fun SavePresetDialog(
             TextButton(
                 onClick = { onSave(name.trim()) },
                 enabled = name.isNotBlank(),
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
@@ -859,7 +1054,7 @@ private fun DurationEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Set Duration") },
+        title = { Text(stringResource(R.string.duration_editor_title)) },
         text = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -868,16 +1063,20 @@ private fun DurationEditorDialog(
                 OutlinedTextField(
                     value = minutesText,
                     onValueChange = { minutesText = it.filter { c -> c.isDigit() }.take(3) },
-                    label = { Text("Min") },
+                    label = { Text(stringResource(R.string.duration_minutes_label)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                 )
-                Text(":", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    ":",
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.clearAndSetSemantics { },
+                )
                 OutlinedTextField(
                     value = secondsText,
                     onValueChange = { secondsText = it.filter { c -> c.isDigit() }.take(2) },
-                    label = { Text("Sec") },
+                    label = { Text(stringResource(R.string.duration_seconds_label)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
@@ -892,27 +1091,48 @@ private fun DurationEditorDialog(
                     val total = (m * 60 + s).coerceAtLeast(10)
                     onConfirm(total)
                 },
-            ) { Text("Set") }
+            ) { Text(stringResource(R.string.action_set)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
 
+@Composable
 private fun formatDuration(totalSeconds: Int): String {
     val h = totalSeconds / 3600
     val m = (totalSeconds % 3600) / 60
     val s = totalSeconds % 60
     return when {
-        h > 0 && s > 0 -> "%d:%02d:%02d".format(h, m, s)
-        h > 0 -> "%d:%02d".format(h, m)
-        s > 0 -> "%d:%02d".format(m, s)
-        else -> "%d min".format(m)
+        h > 0 && s > 0 -> stringResource(R.string.duration_hms, h, m, s)
+        h > 0 -> stringResource(R.string.duration_ms, h, m)
+        s > 0 -> stringResource(R.string.duration_ms, m, s)
+        else -> pluralStringResource(R.plurals.minutes_short, m, m)
     }
 }
 
+/** Digit clocks like "5:30" are read out character by character, so spell it out. */
+@Composable
+private fun spokenDuration(totalSeconds: Int): String {
+    val m = totalSeconds / 60
+    val s = totalSeconds % 60
+    val parts = buildList {
+        if (m > 0) add(pluralStringResource(R.plurals.minutes, m, m))
+        if (s > 0) add(pluralStringResource(R.plurals.seconds, s, s))
+    }
+    return if (parts.isEmpty()) {
+        pluralStringResource(R.plurals.minutes, 0, 0)
+    } else {
+        parts.joinToString(" ")
+    }
+}
+
+@Composable
 private fun formatBellTime(millis: Long): String {
-    val totalMin = millis / 60_000
-    return "at $totalMin min"
+    val totalMin = (millis / 60_000).toInt()
+    return stringResource(
+        R.string.interval_bell_at,
+        pluralStringResource(R.plurals.minutes_short, totalMin, totalMin),
+    )
 }

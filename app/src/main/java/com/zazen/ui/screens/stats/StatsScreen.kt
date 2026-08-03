@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,12 +51,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import android.widget.Toast
+import com.zazen.R
 import com.zazen.data.model.MeditationSession
+import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -89,7 +98,23 @@ fun StatsScreen(
 
     LaunchedEffect(Unit) {
         viewModel.messages.collect { message ->
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            val text = when (message) {
+                is StatsMessage.BackupSaved -> context.getString(R.string.backup_saved)
+                is StatsMessage.BackupFailed ->
+                    context.getString(R.string.backup_failed, message.reason)
+                is StatsMessage.RestoreFailed ->
+                    context.getString(R.string.restore_failed, message.reason)
+                is StatsMessage.Restored -> context.getString(
+                    R.string.restore_succeeded,
+                    context.resources.getQuantityString(
+                        R.plurals.preset_count, message.presetCount, message.presetCount,
+                    ),
+                    context.resources.getQuantityString(
+                        R.plurals.session_count, message.sessionCount, message.sessionCount,
+                    ),
+                )
+            }
+            Toast.makeText(context, text, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -97,17 +122,31 @@ fun StatsScreen(
         topBar = {
             if (selectionMode) {
                 TopAppBar(
-                    title = { Text("${selectedIds.size} selected") },
+                    title = {
+                        Text(
+                            pluralStringResource(
+                                R.plurals.stats_selected_count,
+                                selectedIds.size,
+                                selectedIds.size,
+                            )
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = { selectedIds = emptySet() }) {
-                            Icon(Icons.Default.Close, "Cancel selection")
+                            Icon(
+                                Icons.Default.Close,
+                                stringResource(R.string.stats_cd_cancel_selection),
+                            )
                         }
                     },
                     actions = {
                         IconButton(onClick = {
                             selectedIds = sessions.map { it.id }.toSet()
                         }) {
-                            Icon(Icons.Default.DoneAll, "Select all")
+                            Icon(
+                                Icons.Default.DoneAll,
+                                stringResource(R.string.stats_cd_select_all),
+                            )
                         }
                         IconButton(onClick = {
                             val ordered = sessions.filter { it.id in selectedIds }
@@ -116,29 +155,43 @@ fun StatsScreen(
                             val n = selectedIds.size
                             Toast.makeText(
                                 context,
-                                "Copied $n session${if (n == 1) "" else "s"}",
+                                context.resources.getQuantityString(
+                                    R.plurals.sessions_copied, n, n,
+                                ),
                                 Toast.LENGTH_SHORT,
                             ).show()
                             selectedIds = emptySet()
                         }) {
-                            Icon(Icons.Default.ContentCopy, "Copy to clipboard")
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                stringResource(R.string.stats_cd_copy),
+                            )
                         }
                     },
                 )
             } else {
                 TopAppBar(
-                    title = { Text("Stats") },
+                    title = { Text(stringResource(R.string.stats_title)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                stringResource(R.string.stats_cd_back),
+                            )
                         }
                     },
                     actions = {
                         IconButton(onClick = { exportLauncher.launch(backupFileName()) }) {
-                            Icon(Icons.Default.Download, "Export backup")
+                            Icon(
+                                Icons.Default.Download,
+                                stringResource(R.string.stats_cd_export),
+                            )
                         }
                         IconButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
-                            Icon(Icons.Default.Upload, "Restore backup")
+                            Icon(
+                                Icons.Default.Upload,
+                                stringResource(R.string.stats_cd_restore),
+                            )
                         }
                     },
                 )
@@ -159,12 +212,12 @@ fun StatsScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 StatCard(
-                    label = "Total Time",
+                    label = stringResource(R.string.stats_total_time),
                     value = formatTotalTime(totalMillis),
                     modifier = Modifier.weight(1f),
                 )
                 StatCard(
-                    label = "Sessions",
+                    label = stringResource(R.string.stats_sessions),
                     value = sessionCount.toString(),
                     modifier = Modifier.weight(1f),
                 )
@@ -176,10 +229,13 @@ fun StatsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("History", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.stats_history),
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 if (!selectionMode && sessions.isNotEmpty()) {
                     Text(
-                        "Long-press to select",
+                        stringResource(R.string.stats_history_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -189,7 +245,7 @@ fun StatsScreen(
 
             if (sessions.isEmpty()) {
                 Text(
-                    "No sessions yet — start meditating!",
+                    stringResource(R.string.stats_history_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -228,16 +284,25 @@ fun StatsScreen(
     sessionToDelete?.let { session ->
         AlertDialog(
             onDismissRequest = { sessionToDelete = null },
-            title = { Text("Delete session?") },
-            text = { Text("This will permanently remove this ${formatMinutes(session.completedMillis)} session from your history.") },
+            title = { Text(stringResource(R.string.session_delete_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.session_delete_message,
+                        formatMinutes(session.completedMillis),
+                    )
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteSession(session)
                     sessionToDelete = null
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { sessionToDelete = null }) { Text("Cancel") }
+                TextButton(onClick = { sessionToDelete = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             },
         )
     }
@@ -256,21 +321,18 @@ fun StatsScreen(
     pendingImportUri?.let { uri ->
         AlertDialog(
             onDismissRequest = { pendingImportUri = null },
-            title = { Text("Restore backup?") },
-            text = {
-                Text(
-                    "This will replace all current presets and session history " +
-                        "(including notes) with the contents of the backup file.",
-                )
-            },
+            title = { Text(stringResource(R.string.restore_title)) },
+            text = { Text(stringResource(R.string.restore_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.importBackup(uri)
                     pendingImportUri = null
-                }) { Text("Restore") }
+                }) { Text(stringResource(R.string.action_restore)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingImportUri = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingImportUri = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             },
         )
     }
@@ -293,9 +355,13 @@ private fun EditNotesDialog(
         onDismissRequest = onDismiss,
         title = {
             Column {
-                Text("Session Notes")
+                Text(stringResource(R.string.session_notes_title))
                 Text(
-                    "${formatDate(session.startTime)} · ${formatMinutes(session.completedMillis)}",
+                    stringResource(
+                        R.string.session_notes_subtitle,
+                        formatDate(session.startTime),
+                        formatMinutes(session.completedMillis),
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -305,18 +371,20 @@ private fun EditNotesDialog(
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
-                label = { Text("Notes") },
-                placeholder = { Text("Add reflections…") },
+                label = { Text(stringResource(R.string.session_notes_label)) },
+                placeholder = { Text(stringResource(R.string.session_notes_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3,
                 maxLines = 8,
             )
         },
         confirmButton = {
-            TextButton(onClick = { onSave(notes.trim()) }) { Text("Save") }
+            TextButton(onClick = { onSave(notes.trim()) }) {
+                Text(stringResource(R.string.action_save))
+            }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
@@ -349,7 +417,11 @@ private fun SelectableSessionItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onTap, onLongClick = onLongPress),
+            .toggleable(
+                value = isSelected,
+                role = Role.Checkbox,
+                onValueChange = { onTap() },
+            ),
         colors = if (isSelected) {
             CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
         } else {
@@ -362,10 +434,7 @@ private fun SelectableSessionItem(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Checkbox(
-                checked = isSelected,
-                onCheckedChange = { onTap() },
-            )
+            Checkbox(checked = isSelected, onCheckedChange = null)
             Spacer(Modifier.size(4.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -405,10 +474,23 @@ private fun SessionItem(
     onTap: () -> Unit,
     onLongPress: () -> Unit,
 ) {
+    val dateLabel = formatDate(session.startTime)
+    val selectLabel = stringResource(R.string.stats_action_select)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onTap, onLongClick = onLongPress),
+            .combinedClickable(onClick = onTap, onLongClick = onLongPress)
+            // Long-press is awkward with a screen reader or limited motor control,
+            // so surface entering selection mode as an explicit action too.
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction(selectLabel) {
+                        onLongPress()
+                        true
+                    },
+                )
+            },
     ) {
         Row(
             modifier = Modifier
@@ -419,7 +501,7 @@ private fun SessionItem(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    formatDate(session.startTime),
+                    dateLabel,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
@@ -427,42 +509,23 @@ private fun SessionItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (session.notes.isNotBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .padding(end = 4.dp)
-                                .height(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        )
-                        Text(
-                            session.notes,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                } else {
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .padding(end = 4.dp)
-                                .height(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                        )
-                        Text(
-                            "Tap to add notes",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        )
-                    }
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .height(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        session.notes.ifBlank { stringResource(R.string.session_add_notes) },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -473,7 +536,9 @@ private fun SessionItem(
                 IconButton(onClick = onDelete) {
                     Icon(
                         Icons.Default.Delete,
-                        contentDescription = "Delete session",
+                        contentDescription = stringResource(
+                            R.string.session_cd_delete, dateLabel,
+                        ),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -489,26 +554,38 @@ private fun formatTotalTime(millis: Long): String {
     return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
 }
 
+@Composable
 private fun formatMinutes(millis: Long): String {
-    val minutes = millis / 60_000
-    return "${minutes} min"
+    val minutes = (millis / 60_000).toInt()
+    return pluralStringResource(R.plurals.minutes_short, minutes, minutes)
 }
 
-private val dateFormat = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+/**
+ * Locale-aware: the previous "MMM d, h:mm a" pattern forced a 12-hour clock even
+ * in locales that use a 24-hour one. Not cached in a val because [SimpleDateFormat]
+ * is not thread-safe.
+ */
+private fun dateFormat(): DateFormat =
+    SimpleDateFormat(
+        android.text.format.DateFormat.getBestDateTimePattern(Locale.getDefault(), "MMMdjmm"),
+        Locale.getDefault(),
+    )
 
-private fun formatDate(epochMillis: Long): String = dateFormat.format(Date(epochMillis))
+private fun formatDate(epochMillis: Long): String = dateFormat().format(Date(epochMillis))
 
+@Composable
 private fun sessionStatusLabel(session: MeditationSession): String = when {
     // Open-ended sits have no target to fall short of — they end when you end them.
-    session.isOpenEnded -> "Open sit"
-    session.completed -> "Completed"
-    else -> "Stopped early"
+    session.isOpenEnded -> stringResource(R.string.session_status_open)
+    session.completed -> stringResource(R.string.session_status_completed)
+    else -> stringResource(R.string.session_status_stopped)
 }
 
 private fun formatSessionsForClipboard(sessions: List<MeditationSession>): String {
     // Oldest first reads more naturally for sharing chronologically
     return sessions.sortedBy { it.startTime }.joinToString("\n") { s ->
-        val header = "${formatDate(s.startTime)} (${formatMinutes(s.completedMillis)})"
+        val minutes = s.completedMillis / 60_000
+        val header = "${formatDate(s.startTime)} (${minutes} min)"
         val notes = s.notes.trim()
         if (notes.isNotEmpty()) "- $header: $notes" else "- $header"
     }

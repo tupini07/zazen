@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.media.AudioManager
+import android.view.accessibility.AccessibilityManager
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
@@ -51,6 +52,12 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -60,6 +67,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.zazen.R
 import com.zazen.data.model.TimerState
 import kotlin.math.cos
 import kotlin.math.sin
@@ -113,8 +121,11 @@ fun TimerScreen(
             }
         }
 
-        // 1. Toggle immersive mode
-        if (isActive) {
+        // 1. Toggle immersive mode. Hiding the system bars mid-sit is disorienting
+        //    when exploring by touch, so leave them up for screen-reader users.
+        val touchExplorationOn = (context.getSystemService(Context.ACCESSIBILITY_SERVICE)
+            as? AccessibilityManager)?.isTouchExplorationEnabled == true
+        if (isActive && !touchExplorationOn) {
             controller?.hide(WindowInsetsCompat.Type.systemBars())
             controller?.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -153,8 +164,8 @@ fun TimerScreen(
             val maxVol = am?.getStreamMaxVolume(AudioManager.STREAM_ALARM) ?: 0
             val pct = if (maxVol > 0) vol.toFloat() / maxVol else 1f
             val msg = when {
-                vol == 0 -> "Alarm volume is muted — bell won't be audible"
-                pct < 0.2f -> "Alarm volume is low — you might not hear the bell"
+                vol == 0 -> context.getString(R.string.timer_toast_volume_muted)
+                pct < 0.2f -> context.getString(R.string.timer_toast_volume_low)
                 else -> null
             }
             if (msg != null) {
@@ -248,7 +259,11 @@ private fun ActiveTimerContent(
             Icon(
                 imageVector = if (vibrateOnly) Icons.AutoMirrored.Filled.VolumeOff
                     else Icons.AutoMirrored.Filled.VolumeUp,
-                contentDescription = if (vibrateOnly) "Sound off (vibrate only)" else "Sound on",
+                contentDescription = if (vibrateOnly) {
+                    stringResource(R.string.timer_cd_sound_off)
+                } else {
+                    stringResource(R.string.timer_cd_sound_on)
+                },
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -259,17 +274,23 @@ private fun ActiveTimerContent(
             verticalArrangement = Arrangement.Center,
         ) {
             Box(contentAlignment = Alignment.Center) {
+                // The ring and the countdown are deliberately silent to assistive
+                // tech: a value that ticks four times a second would talk over the
+                // sit, and the bells are what mark time here.
                 TimerCircle(
                     // An open-ended sit has no endpoint, so there's no arc to fill —
                     // show the bare track instead of a ring draining toward zero.
                     progress = if (openEnded) 0f else if (total > 0) remaining.toFloat() / total else 0f,
                     bellFractions = if (openEnded) emptyList() else bellFractions,
-                    modifier = Modifier.size(280.dp),
+                    modifier = Modifier
+                        .size(280.dp)
+                        .clearAndSetSemantics { },
                 )
                 Text(
                     text = formatTime(if (openEnded) elapsed else remaining),
                     style = MaterialTheme.typography.displayLarge,
                     textAlign = TextAlign.Center,
+                    modifier = Modifier.clearAndSetSemantics { },
                 )
             }
 
@@ -277,18 +298,22 @@ private fun ActiveTimerContent(
                 Spacer(Modifier.height(16.dp))
                 val untilNext = repeatEveryMillis - (elapsed % repeatEveryMillis)
                 Text(
-                    "Next bell in ${formatTime(untilNext)}",
+                    stringResource(R.string.timer_next_bell_in, formatTime(untilNext)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clearAndSetSemantics { },
                 )
             }
 
             if (isPaused) {
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "Paused",
+                    stringResource(R.string.timer_paused),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // With the countdown silent this is the only cue that pausing
+                    // worked, and no bell rings for it.
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
 
@@ -300,21 +325,33 @@ private fun ActiveTimerContent(
                         onClick = onResume,
                         modifier = Modifier.size(64.dp),
                     ) {
-                        Icon(Icons.Default.PlayArrow, "Resume", modifier = Modifier.size(32.dp))
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            stringResource(R.string.timer_cd_resume),
+                            modifier = Modifier.size(32.dp),
+                        )
                     }
                 } else {
                     FilledTonalIconButton(
                         onClick = onPause,
                         modifier = Modifier.size(64.dp),
                     ) {
-                        Icon(Icons.Default.Pause, "Pause", modifier = Modifier.size(32.dp))
+                        Icon(
+                            Icons.Default.Pause,
+                            stringResource(R.string.timer_cd_pause),
+                            modifier = Modifier.size(32.dp),
+                        )
                     }
                 }
                 FilledTonalIconButton(
                     onClick = onStop,
                     modifier = Modifier.size(64.dp),
                 ) {
-                    Icon(Icons.Default.Stop, "Stop", modifier = Modifier.size(32.dp))
+                    Icon(
+                        Icons.Default.Stop,
+                        stringResource(R.string.timer_cd_stop),
+                        modifier = Modifier.size(32.dp),
+                    )
                 }
             }
         }
@@ -335,14 +372,7 @@ private fun FinishedContent(
     var saving by remember { mutableStateOf(false) }
     val hasValidId = sessionId > 0
 
-    val durationText = remember(elapsedMillis) {
-        val totalSec = (elapsedMillis / 1000).toInt()
-        val min = totalSec / 60
-        val sec = totalSec % 60
-        if (min > 0 && sec > 0) "${min}m ${sec}s"
-        else if (min > 0) "${min} min"
-        else "${sec}s"
-    }
+    val durationText = formatElapsed(elapsedMillis)
 
     Column(
         modifier = Modifier
@@ -353,22 +383,27 @@ private fun FinishedContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("🧘", style = MaterialTheme.typography.displayLarge)
+        Text(
+            "\uD83E\uDDD8",
+            style = MaterialTheme.typography.displayLarge,
+            // Decorative — otherwise announced as "person in lotus position".
+            modifier = Modifier.clearAndSetSemantics { },
+        )
         Spacer(Modifier.height(16.dp))
         Text(
             when {
-                openEnded -> "Open Sit Complete"
-                completed -> "Session Complete"
-                else -> "Session Ended"
+                openEnded -> stringResource(R.string.finished_title_open)
+                completed -> stringResource(R.string.finished_title_complete)
+                else -> stringResource(R.string.finished_title_ended)
             },
             style = MaterialTheme.typography.titleLarge,
         )
         Spacer(Modifier.height(4.dp))
         Text(
             when {
-                openEnded -> "You sat for $durationText"
-                completed -> "$durationText completed"
-                else -> "Ended after $durationText"
+                openEnded -> stringResource(R.string.finished_summary_open, durationText)
+                completed -> stringResource(R.string.finished_summary_complete, durationText)
+                else -> stringResource(R.string.finished_summary_ended, durationText)
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -379,10 +414,11 @@ private fun FinishedContent(
         OutlinedTextField(
             value = notes,
             onValueChange = { notes = it },
+            label = { Text(stringResource(R.string.finished_notes_label)) },
             placeholder = {
                 Text(
-                    if (completed) "Jot down any reflections or insights…"
-                    else "Anything you want to note about this sit…"
+                    if (completed) stringResource(R.string.finished_notes_placeholder_complete)
+                    else stringResource(R.string.finished_notes_placeholder_ended)
                 )
             },
             modifier = Modifier.fillMaxWidth(),
@@ -402,9 +438,9 @@ private fun FinishedContent(
         ) {
             Text(
                 when {
-                    saving -> "Saving…"
-                    notes.isBlank() -> "Skip"
-                    else -> "Done"
+                    saving -> stringResource(R.string.action_saving)
+                    notes.isBlank() -> stringResource(R.string.action_skip)
+                    else -> stringResource(R.string.action_done)
                 }
             )
         }
@@ -416,10 +452,22 @@ private fun FinishedContent(
             enabled = !saving && hasValidId,
         ) {
             Text(
-                "Discard session",
+                stringResource(R.string.finished_discard),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+@Composable
+private fun formatElapsed(elapsedMillis: Long): String {
+    val totalSec = (elapsedMillis / 1000).toInt()
+    val min = totalSec / 60
+    val sec = totalSec % 60
+    return when {
+        min > 0 && sec > 0 -> stringResource(R.string.duration_min_sec_short, min, sec)
+        min > 0 -> pluralStringResource(R.plurals.minutes_short, min, min)
+        else -> stringResource(R.string.duration_sec_short, sec)
     }
 }
 

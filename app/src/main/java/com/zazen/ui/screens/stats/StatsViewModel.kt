@@ -29,7 +29,7 @@ class StatsViewModel @Inject constructor(
     val sessionCount = sessionRepository.getSessionCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    private val _messages = MutableSharedFlow<String>()
+    private val _messages = MutableSharedFlow<StatsMessage>()
     val messages = _messages.asSharedFlow()
 
     fun deleteSession(session: MeditationSession) {
@@ -44,9 +44,9 @@ class StatsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 backupRepository.exportToUri(uri)
-                _messages.emit("Backup saved")
+                _messages.emit(StatsMessage.BackupSaved)
             } catch (e: Exception) {
-                _messages.emit("Backup failed: ${e.message}")
+                _messages.emit(StatsMessage.BackupFailed(e.message.orEmpty()))
             }
         }
     }
@@ -55,12 +55,21 @@ class StatsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val result = backupRepository.importFromUri(uri)
-                _messages.emit(
-                    "Restored ${result.presetCount} preset(s) and ${result.sessionCount} session(s)",
-                )
+                _messages.emit(StatsMessage.Restored(result.presetCount, result.sessionCount))
             } catch (e: Exception) {
-                _messages.emit("Restore failed: ${e.message}")
+                _messages.emit(StatsMessage.RestoreFailed(e.message.orEmpty()))
             }
         }
     }
+}
+
+/**
+ * User-facing messages kept as data rather than pre-formatted strings so the UI
+ * layer can resolve them against string resources (and plurals).
+ */
+sealed interface StatsMessage {
+    data object BackupSaved : StatsMessage
+    data class BackupFailed(val reason: String) : StatsMessage
+    data class RestoreFailed(val reason: String) : StatsMessage
+    data class Restored(val presetCount: Int, val sessionCount: Int) : StatsMessage
 }

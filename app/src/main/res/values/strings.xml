@@ -1,3 +1,199 @@
 <resources>
     <string name="app_name">Zazen</string>
+
+    <!-- ===================== Common actions ===================== -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_save">Save</string>
+    <string name="action_add">Add</string>
+    <string name="action_set">Set</string>
+    <string name="action_change">Change</string>
+    <string name="action_turn_off">Turn Off</string>
+    <string name="action_restore">Restore</string>
+    <string name="action_done">Done</string>
+    <string name="action_skip">Skip</string>
+    <string name="action_saving">Saving\u2026</string>
+
+    <!-- ===================== Setup screen ===================== -->
+    <string name="setup_cd_theme">Choose theme</string>
+    <string name="setup_cd_stats">Meditation history</string>
+
+    <!-- Presets -->
+    <string name="preset_cd_delete">Delete preset %1$s</string>
+    <string name="preset_delete_title">Delete preset?</string>
+    <string name="preset_delete_message">Delete \"%1$s\"?</string>
+    <string name="preset_save_chip">Save as Preset</string>
+    <string name="preset_save_title">Save Preset</string>
+    <string name="preset_name_label">Preset name</string>
+
+    <!-- Session mode -->
+    <string name="mode_timed">Timed</string>
+    <string name="mode_open">Open-ended</string>
+
+    <!-- Duration -->
+    <string name="duration_label">Duration</string>
+    <string name="duration_unlimited_symbol">\u221e</string>
+    <string name="duration_cd_unlimited">No time limit</string>
+    <string name="duration_open_ended_hint">Counts up until you stop \u2014 the closing bell rings when you do</string>
+    <string name="duration_cd_decrease">Decrease duration</string>
+    <string name="duration_cd_increase">Increase duration</string>
+    <string name="duration_action_edit">Edit duration</string>
+    <string name="duration_editor_title">Set Duration</string>
+    <string name="duration_minutes_label">Minutes</string>
+    <string name="duration_seconds_label">Seconds</string>
+
+    <!-- End bell -->
+    <string name="end_bell_label">End Bell</string>
+    <string name="end_bell_cd_preview">Preview end bell</string>
+
+    <!-- Bell volume -->
+    <string name="bell_volume_label">Bell Volume</string>
+    <string name="bell_volume_percent">%1$d%%</string>
+
+
+    <!-- Toggles -->
+    <string name="toggle_vibrate_title">Vibrate</string>
+    <string name="toggle_vibrate_subtitle">Vibrate instead of playing sounds</string>
+    <string name="toggle_dnd_title">Do Not Disturb</string>
+    <string name="toggle_screen_on_title">Screen Always On</string>
+
+    <!-- Repeating bell -->
+    <string name="repeat_bell_title">Repeating Bell</string>
+    <string name="repeat_bell_off">Off</string>
+    <string name="repeat_bell_summary">Every %1$s \u00b7 %2$s</string>
+    <string name="repeat_bell_cd_configure">Configure repeating bell</string>
+    <string name="repeat_bell_description">Rings at a fixed interval for the whole sit. On a timed sit a repeat landing on the end is skipped so it doesn\'t double up with the closing bell.</string>
+    <string name="repeat_bell_interval_label">Repeat every (minutes)</string>
+    <string name="repeat_bell_interval_placeholder">Leave empty to turn off</string>
+
+    <!-- Interval bells -->
+    <string name="interval_bells_label">Interval Bells</string>
+    <string name="interval_bells_empty">No interval bells \u2014 tap Add to schedule bells within your session</string>
+    <string name="interval_bell_at">at %1$s</string>
+    <string name="interval_bell_cd_preview">Preview bell at %1$s</string>
+    <string name="interval_bell_cd_edit">Edit bell at %1$s</string>
+    <string name="interval_bell_cd_remove">Remove bell at %1$s</string>
+    <string name="bell_dialog_add_title">Add Interval Bell</string>
+    <string name="bell_dialog_edit_title">Edit Interval Bell</string>
+    <string name="bell_time_from_start">Time from start</string>
+
+    <!-- Sounds -->
+    <string name="sound_label">Sound</string>
+    <string name="sound_cd_preview">Preview %1$s</string>
+    <string name="sound_unknown">Unknown</string>
+    <string name="sound_bell">Bell</string>
+    <string name="sound_bell_high">High Bell</string>
+    <string name="sound_bowl">Tibetan Bowl</string>
+    <string name="sound_bowl_deep">Deep Bowl</string>
+    <string name="sound_gong">Zen Gong</string>
+
+    <!-- Start / volume warning -->
+    <string name="action_start">Start</string>
+    <string name="action_start_anyway">Start Anyway</string>
+    <string name="volume_muted_title">Volume is muted</string>
+    <string name="volume_muted_message">Your alarm volume is at zero \u2014 bells won\'t be audible. Raise the volume or enable vibrate mode.</string>
+
+    <!-- Theme picker -->
+    <string name="theme_title">Theme</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
+    <!-- ===================== Timer screen ===================== -->
+    <string name="timer_cd_sound_on">Sound on. Tap to switch to vibrate only.</string>
+    <string name="timer_cd_sound_off">Vibrate only. Tap to switch to sound.</string>
+    <string name="timer_paused">Paused</string>
+    <string name="timer_cd_pause">Pause</string>
+    <string name="timer_cd_resume">Resume</string>
+    <string name="timer_cd_stop">Stop</string>
+    <string name="timer_next_bell_in">Next bell in %1$s</string>
+    <string name="timer_toast_volume_muted">Alarm volume is muted \u2014 bell won\'t be audible</string>
+    <string name="timer_toast_volume_low">Alarm volume is low \u2014 you might not hear the bell</string>
+
+    <!-- Finished -->
+    <string name="finished_title_open">Open Sit Complete</string>
+    <string name="finished_title_complete">Session Complete</string>
+    <string name="finished_title_ended">Session Ended</string>
+    <string name="finished_summary_open">You sat for %1$s</string>
+    <string name="finished_summary_complete">%1$s completed</string>
+    <string name="finished_summary_ended">Ended after %1$s</string>
+    <string name="finished_notes_label">Session notes</string>
+    <string name="finished_notes_placeholder_complete">Jot down any reflections or insights\u2026</string>
+    <string name="finished_notes_placeholder_ended">Anything you want to note about this sit\u2026</string>
+    <string name="finished_discard">Discard session</string>
+
+    <!-- ===================== Stats screen ===================== -->
+    <string name="stats_title">Stats</string>
+    <string name="stats_cd_back">Back</string>
+    <string name="stats_cd_export">Export backup</string>
+    <string name="stats_cd_restore">Restore backup</string>
+    <string name="stats_cd_cancel_selection">Cancel selection</string>
+    <string name="stats_cd_select_all">Select all</string>
+    <string name="stats_cd_copy">Copy to clipboard</string>
+    <string name="stats_total_time">Total Time</string>
+    <string name="stats_sessions">Sessions</string>
+    <string name="stats_history">History</string>
+    <string name="stats_history_hint">Long-press to select</string>
+    <string name="stats_history_empty">No sessions yet \u2014 start meditating!</string>
+    <string name="stats_action_select">Select session</string>
+
+    <string name="session_status_open">Open sit</string>
+    <string name="session_status_completed">Completed</string>
+    <string name="session_status_stopped">Stopped early</string>
+    <string name="session_add_notes">Tap to add notes</string>
+    <string name="session_cd_delete">Delete session from %1$s</string>
+    <string name="session_delete_title">Delete session?</string>
+    <string name="session_delete_message">This will permanently remove this %1$s session from your history.</string>
+    <string name="session_notes_title">Session Notes</string>
+    <string name="session_notes_subtitle">%1$s \u00b7 %2$s</string>
+    <string name="session_notes_label">Notes</string>
+    <string name="session_notes_placeholder">Add reflections\u2026</string>
+
+    <string name="restore_title">Restore backup?</string>
+    <string name="restore_message">This will replace all current presets and session history (including notes) with the contents of the backup file.</string>
+    <string name="backup_saved">Backup saved</string>
+    <string name="backup_failed">Backup failed: %1$s</string>
+    <string name="restore_failed">Restore failed: %1$s</string>
+    <string name="restore_succeeded">Restored %1$s and %2$s</string>
+
+    <!-- ===================== Notification ===================== -->
+    <string name="notification_channel_name">Timer</string>
+    <string name="notification_channel_description">Active meditation timer</string>
+    <string name="notification_text">Meditating \u2014 %1$s</string>
+
+    <!-- ===================== Durations ===================== -->
+    <string name="duration_hms">%1$d:%2$02d:%3$02d</string>
+    <string name="duration_ms">%1$d:%2$02d</string>
+    <string name="duration_min_sec_short">%1$dm %2$ds</string>
+    <string name="duration_sec_short">%1$ds</string>
+
+    <plurals name="minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <plurals name="seconds">
+        <item quantity="one">%1$d second</item>
+        <item quantity="other">%1$d seconds</item>
+    </plurals>
+    <plurals name="minutes_short">
+        <item quantity="one">%1$d min</item>
+        <item quantity="other">%1$d min</item>
+    </plurals>
+    <plurals name="sessions_copied">
+        <item quantity="one">Copied %1$d session</item>
+        <item quantity="other">Copied %1$d sessions</item>
+    </plurals>
+    <plurals name="preset_count">
+        <item quantity="one">%1$d preset</item>
+        <item quantity="other">%1$d presets</item>
+    </plurals>
+    <plurals name="session_count">
+        <item quantity="one">%1$d session</item>
+        <item quantity="other">%1$d sessions</item>
+    </plurals>
+    <plurals name="stats_selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
 </resources>
