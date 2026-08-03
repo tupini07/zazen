@@ -27,9 +27,24 @@ class SetupViewModel @Inject constructor(
     private val soundPlayer: SoundPlayer,
 ) : ViewModel() {
 
-    /** Duration in total seconds. */
+    /** Duration in total seconds. Only meaningful when [openEnded] is false. */
     private val _durationSeconds = MutableStateFlow(prefs.durationSeconds)
     val durationSeconds: StateFlow<Int> = _durationSeconds.asStateFlow()
+
+    /**
+     * Open-ended sits are kept as a separate flag rather than a 0 duration so
+     * that toggling back to Timed restores the user's last chosen duration.
+     */
+    private val _openEnded = MutableStateFlow(prefs.openEnded)
+    val openEnded: StateFlow<Boolean> = _openEnded.asStateFlow()
+
+    private val _repeatEverySeconds = MutableStateFlow(prefs.repeatEverySeconds)
+    val repeatEverySeconds: StateFlow<Int> = _repeatEverySeconds.asStateFlow()
+
+    private val _repeatSound = MutableStateFlow(
+        Sound.entries.find { it.name == prefs.repeatSoundName } ?: Sound.DEFAULT
+    )
+    val repeatSound: StateFlow<Sound> = _repeatSound.asStateFlow()
 
     private val _vibrateOnly = MutableStateFlow(prefs.vibrateOnly)
     val vibrateOnly: StateFlow<Boolean> = _vibrateOnly.asStateFlow()
@@ -75,6 +90,22 @@ class SetupViewModel @Inject constructor(
     fun setDurationSeconds(seconds: Int) {
         _durationSeconds.value = seconds.coerceIn(10, 240 * 60)
         prefs.durationSeconds = _durationSeconds.value
+    }
+
+    fun setOpenEnded(open: Boolean) {
+        _openEnded.value = open
+        prefs.openEnded = open
+    }
+
+    /** 0 disables repeating bells. */
+    fun setRepeatEverySeconds(seconds: Int) {
+        _repeatEverySeconds.value = seconds.coerceIn(0, 240 * 60)
+        prefs.repeatEverySeconds = _repeatEverySeconds.value
+    }
+
+    fun setRepeatSound(sound: Sound) {
+        _repeatSound.value = sound
+        prefs.repeatSoundName = sound.name
     }
 
     fun incrementDuration() {
@@ -146,11 +177,14 @@ class SetupViewModel @Inject constructor(
     // --- Presets ---
 
     fun loadPreset(preset: Preset) {
-        setDurationSeconds(preset.durationSeconds)
+        setOpenEnded(preset.isOpenEnded)
+        if (!preset.isOpenEnded) setDurationSeconds(preset.durationSeconds)
         _vibrateOnly.value = preset.vibrateOnly
         prefs.vibrateOnly = preset.vibrateOnly
         setBellVolume(preset.bellVolume)
         setEndSound(Sound.entries.find { it.name == preset.endSoundName } ?: Sound.DEFAULT)
+        setRepeatEverySeconds(preset.repeatEverySeconds)
+        setRepeatSound(Sound.entries.find { it.name == preset.repeatSoundName } ?: Sound.DEFAULT)
         _dndEnabled.value = preset.dndEnabled
         prefs.dndEnabled = preset.dndEnabled
         // Convert preset bells to interval bells
@@ -166,12 +200,14 @@ class SetupViewModel @Inject constructor(
             presetRepository.save(
                 Preset.fromSetupState(
                     name = name,
-                    durationSeconds = _durationSeconds.value,
+                    durationSeconds = if (_openEnded.value) 0 else _durationSeconds.value,
                     vibrateOnly = _vibrateOnly.value,
                     bellVolume = _bellVolume.value,
                     endSound = _endSound.value,
                     dndEnabled = _dndEnabled.value,
                     intervalBells = _bells.value,
+                    repeatEverySeconds = _repeatEverySeconds.value,
+                    repeatSound = _repeatSound.value,
                 )
             )
         }
@@ -190,12 +226,14 @@ class SetupViewModel @Inject constructor(
     fun startTimer() {
         timerManager.start(
             TimerConfig(
-                durationMillis = _durationSeconds.value * 1_000L,
+                durationMillis = if (_openEnded.value) 0L else _durationSeconds.value * 1_000L,
                 bells = _bells.value,
                 vibrateOnly = _vibrateOnly.value,
                 bellVolume = _bellVolume.value,
                 endSoundResId = _endSound.value.resId,
                 dndEnabled = _dndEnabled.value,
+                repeatEveryMillis = _repeatEverySeconds.value * 1_000L,
+                repeatSoundResId = _repeatSound.value.resId,
             )
         )
     }

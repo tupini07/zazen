@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.AlertDialog
@@ -56,6 +57,9 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -73,6 +77,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -80,6 +85,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.zazen.data.model.IntervalBell
 import com.zazen.data.model.Preset
 import com.zazen.data.model.Sound
+
+/** Bell-placement ceiling for open-ended sits, which have no duration to bound it. */
+private const val OPEN_ENDED_BELL_MAX_MINUTES = 240
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,6 +97,9 @@ fun SetupScreen(
     viewModel: SetupViewModel = hiltViewModel(),
 ) {
     val durationSeconds by viewModel.durationSeconds.collectAsState()
+    val openEnded by viewModel.openEnded.collectAsState()
+    val repeatEverySeconds by viewModel.repeatEverySeconds.collectAsState()
+    val repeatSound by viewModel.repeatSound.collectAsState()
     val vibrateOnly by viewModel.vibrateOnly.collectAsState()
     val bellVolume by viewModel.bellVolume.collectAsState()
     val endSound by viewModel.endSound.collectAsState()
@@ -102,6 +113,7 @@ fun SetupScreen(
     var editingBellIndex by remember { mutableIntStateOf(-1) }
     var showSavePresetDialog by remember { mutableStateOf(false) }
     var showDurationEditor by remember { mutableStateOf(false) }
+    var showRepeatEditor by remember { mutableStateOf(false) }
     var showVolumeWarning by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
     var presetToDelete by remember { mutableStateOf<Preset?>(null) }
@@ -200,25 +212,57 @@ fun SetupScreen(
 
             Spacer(Modifier.height(16.dp))
 
+            // --- Timed / Open mode ---
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = !openEnded,
+                    onClick = { viewModel.setOpenEnded(false) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                ) { Text("Timed") }
+                SegmentedButton(
+                    selected = openEnded,
+                    onClick = { viewModel.setOpenEnded(true) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) { Text("Open") }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
             // --- Duration picker ---
-            Text("Duration", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                IconButton(onClick = { viewModel.decrementDuration() }) {
-                    Icon(Icons.Default.Remove, "Less")
-                }
+            if (openEnded) {
+                Text("Duration", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    text = formatDuration(durationSeconds),
+                    text = "∞",
                     style = MaterialTheme.typography.displayMedium,
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .clickable { showDurationEditor = true },
                 )
-                IconButton(onClick = { viewModel.incrementDuration() }) {
-                    Icon(Icons.Default.Add, "More")
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Counts up until you stop — the closing bell rings when you do",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            } else {
+                Text("Duration", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    IconButton(onClick = { viewModel.decrementDuration() }) {
+                        Icon(Icons.Default.Remove, "Less")
+                    }
+                    Text(
+                        text = formatDuration(durationSeconds),
+                        style = MaterialTheme.typography.displayMedium,
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .clickable { showDurationEditor = true },
+                    )
+                    IconButton(onClick = { viewModel.incrementDuration() }) {
+                        Icon(Icons.Default.Add, "More")
+                    }
                 }
             }
 
@@ -311,6 +355,35 @@ fun SetupScreen(
 
             Spacer(Modifier.height(16.dp))
 
+            // --- Repeating bell ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Repeat, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text("Repeating Bell")
+                        Text(
+                            if (repeatEverySeconds > 0) {
+                                "Every ${formatDuration(repeatEverySeconds)} · ${repeatSound.displayName}"
+                            } else {
+                                "Off"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                TextButton(onClick = { showRepeatEditor = true }) {
+                    Text(if (repeatEverySeconds > 0) "Change" else "Set")
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
             // --- Interval bells ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -389,7 +462,7 @@ fun SetupScreen(
     if (showAddBellDialog) {
         val editBell = if (editingBellIndex >= 0 && editingBellIndex < bells.size) bells[editingBellIndex] else null
         AddBellDialog(
-            maxMinutes = durationSeconds / 60,
+            maxMinutes = if (openEnded) OPEN_ENDED_BELL_MAX_MINUTES else durationSeconds / 60,
             initialMinutes = editBell?.let { (it.triggerAtMillis / 60_000).toInt() },
             initialSound = editBell?.let { Sound.fromResId(it.soundResId) },
             onConfirm = { minutes, sound ->
@@ -402,6 +475,20 @@ fun SetupScreen(
                 editingBellIndex = -1
             },
             onDismiss = { showAddBellDialog = false; editingBellIndex = -1 },
+            onPreview = { viewModel.previewSound(it) },
+        )
+    }
+
+    if (showRepeatEditor) {
+        RepeatBellDialog(
+            currentSeconds = repeatEverySeconds,
+            currentSound = repeatSound,
+            onConfirm = { seconds, sound ->
+                viewModel.setRepeatEverySeconds(seconds)
+                viewModel.setRepeatSound(sound)
+                showRepeatEditor = false
+            },
+            onDismiss = { showRepeatEditor = false },
             onPreview = { viewModel.previewSound(it) },
         )
     }
@@ -646,6 +733,82 @@ private fun AddBellDialog(
         confirmButton = {
             TextButton(onClick = { onConfirm(sliderValue.toInt(), selectedSound) }) {
                 Text(if (isEditing) "Save" else "Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun RepeatBellDialog(
+    currentSeconds: Int,
+    currentSound: Sound,
+    onConfirm: (seconds: Int, sound: Sound) -> Unit,
+    onDismiss: () -> Unit,
+    onPreview: (Sound) -> Unit,
+) {
+    var minutesText by remember {
+        mutableStateOf(if (currentSeconds > 0) (currentSeconds / 60).toString() else "")
+    }
+    var selectedSound by remember { mutableStateOf(currentSound) }
+    val parsedMinutes = minutesText.toIntOrNull() ?: 0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Repeating Bell") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    "Rings at a fixed interval for the whole sit. On a timed sit a " +
+                        "repeat landing on the end is skipped so it doesn't double up " +
+                        "with the closing bell.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = minutesText,
+                    onValueChange = { minutesText = it.filter { c -> c.isDigit() }.take(3) },
+                    label = { Text("Every … minutes") },
+                    placeholder = { Text("Leave empty to turn off") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Spacer(Modifier.height(16.dp))
+                Text("Sound", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+
+                Sound.entries.forEach { sound ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedSound = sound }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = selectedSound == sound,
+                            onClick = { selectedSound = sound },
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(sound.displayName, modifier = Modifier.weight(1f))
+                        IconButton(
+                            onClick = { onPreview(sound) },
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(Icons.Default.PlayCircle, "Preview", modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(parsedMinutes * 60, selectedSound) }) {
+                Text(if (parsedMinutes > 0) "Save" else "Turn Off")
             }
         },
         dismissButton = {

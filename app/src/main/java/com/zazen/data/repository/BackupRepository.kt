@@ -96,6 +96,8 @@ class BackupRepository @Inject constructor(
             put("bellVolume", preset.bellVolume.toDouble())
             put("endSoundName", preset.endSoundName)
             put("dndEnabled", preset.dndEnabled)
+            put("repeatEverySeconds", preset.repeatEverySeconds)
+            put("repeatSoundName", preset.repeatSoundName)
             put("bells", bells)
         }
     }
@@ -117,6 +119,11 @@ class BackupRepository @Inject constructor(
             bellVolume = obj.optDouble("bellVolume", 1.0).toFloat(),
             endSoundName = obj.optString("endSoundName", com.zazen.data.model.Sound.DEFAULT.name),
             dndEnabled = obj.optBoolean("dndEnabled", false),
+            repeatEverySeconds = obj.optInt("repeatEverySeconds", 0),
+            repeatSoundName = obj.optString(
+                "repeatSoundName",
+                com.zazen.data.model.Sound.DEFAULT.name,
+            ),
             bells = bells,
         )
     }

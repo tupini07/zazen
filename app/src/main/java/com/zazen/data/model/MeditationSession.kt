@@ -16,4 +16,7 @@ data class MeditationSession(
     val completed: Boolean,
     /** Optional user notes / reflections */
     val notes: String = "",
-)
+) {
+    /** True when this was an open-ended sit (no planned duration). */
+    val isOpenEnded: Boolean get() = durationMillis <= 0L
+}

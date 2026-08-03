@@ -72,9 +72,10 @@ fun TimerScreen(
     val state by viewModel.state.collectAsState()
     val vibrateOnly by viewModel.vibrateOnly.collectAsState()
 
-    // Pre-compute bell positions as fractions of total duration (0..1)
-    val bellFractions = remember {
-        val cfg = viewModel.config
+    // Pre-compute bell positions as fractions of total duration (0..1).
+    // Keyed on the config because the service populates it asynchronously.
+    val cfg = viewModel.config
+    val bellFractions = remember(cfg) {
         if (cfg != null && cfg.durationMillis > 0) {
             cfg.bells.map { it.triggerAtMillis.toFloat() / cfg.durationMillis }
                 .filter { it in 0f..1f }
@@ -82,6 +83,10 @@ fun TimerScreen(
     }
 
     val isActive = state is TimerState.Running || state is TimerState.Paused
+
+    // For open-ended sits the progress ring can't convey "time left", so surface
+    // the next repeating bell instead.
+    val repeatEveryMillis = cfg?.repeatEveryMillis ?: 0L
 
     val view = LocalView.current
     val context = LocalContext.current
@@ -169,6 +174,9 @@ fun TimerScreen(
                 is TimerState.Running -> ActiveTimerContent(
                     remaining = s.remainingMillis,
                     total = s.totalMillis,
+                    elapsed = s.elapsedMillis,
+                    openEnded = s.isOpenEnded,
+                    repeatEveryMillis = repeatEveryMillis,
                     isPaused = false,
                     bellFractions = bellFractions,
                     vibrateOnly = vibrateOnly,
@@ -181,6 +189,9 @@ fun TimerScreen(
                 is TimerState.Paused -> ActiveTimerContent(
                     remaining = s.remainingMillis,
                     total = s.totalMillis,
+                    elapsed = s.elapsedMillis,
+                    openEnded = s.isOpenEnded,
+                    repeatEveryMillis = repeatEveryMillis,
                     isPaused = true,
                     bellFractions = bellFractions,
                     vibrateOnly = vibrateOnly,
@@ -193,6 +204,7 @@ fun TimerScreen(
                 is TimerState.Finished -> FinishedContent(
                     sessionId = s.sessionId,
                     completed = s.completed,
+                    openEnded = s.openEnded,
                     elapsedMillis = s.elapsedMillis,
                     onSaveAndDismiss = { sessionId, notes, onError ->
                         viewModel.saveNotesAndDismiss(sessionId, notes, onTimerDone, onError)
@@ -214,6 +226,9 @@ fun TimerScreen(
 private fun ActiveTimerContent(
     remaining: Long,
     total: Long,
+    elapsed: Long,
+    openEnded: Boolean,
+    repeatEveryMillis: Long,
     isPaused: Boolean,
     bellFractions: List<Float>,
     vibrateOnly: Boolean,
@@ -245,14 +260,26 @@ private fun ActiveTimerContent(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 TimerCircle(
-                    progress = if (total > 0) remaining.toFloat() / total else 0f,
-                    bellFractions = bellFractions,
+                    // An open-ended sit has no endpoint, so there's no arc to fill —
+                    // show the bare track instead of a ring draining toward zero.
+                    progress = if (openEnded) 0f else if (total > 0) remaining.toFloat() / total else 0f,
+                    bellFractions = if (openEnded) emptyList() else bellFractions,
                     modifier = Modifier.size(280.dp),
                 )
                 Text(
-                    text = formatTime(remaining),
+                    text = formatTime(if (openEnded) elapsed else remaining),
                     style = MaterialTheme.typography.displayLarge,
                     textAlign = TextAlign.Center,
+                )
+            }
+
+            if (openEnded && repeatEveryMillis > 0) {
+                Spacer(Modifier.height(16.dp))
+                val untilNext = repeatEveryMillis - (elapsed % repeatEveryMillis)
+                Text(
+                    "Next bell in ${formatTime(untilNext)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -298,6 +325,7 @@ private fun ActiveTimerContent(
 private fun FinishedContent(
     sessionId: Long,
     completed: Boolean,
+    openEnded: Boolean,
     elapsedMillis: Long,
     onSaveAndDismiss: (Long, String, () -> Unit) -> Unit,
     onDiscard: (Long) -> Unit,
@@ -328,12 +356,20 @@ private fun FinishedContent(
         Text("🧘", style = MaterialTheme.typography.displayLarge)
         Spacer(Modifier.height(16.dp))
         Text(
-            if (completed) "Session Complete" else "Session Ended",
+            when {
+                openEnded -> "Open Sit Complete"
+                completed -> "Session Complete"
+                else -> "Session Ended"
+            },
             style = MaterialTheme.typography.titleLarge,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            if (completed) "$durationText completed" else "Ended after $durationText",
+            when {
+                openEnded -> "You sat for $durationText"
+                completed -> "$durationText completed"
+                else -> "Ended after $durationText"
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -52,6 +52,20 @@ class PreferencesRepository @Inject constructor(
         get() = prefs.getBoolean("screen_always_on", true)
         set(value) = prefs.edit().putBoolean("screen_always_on", value).apply()
 
+    /** Whether the last-used mode was an open-ended (count-up) sit. */
+    var openEnded: Boolean
+        get() = prefs.getBoolean("open_ended", false)
+        set(value) = prefs.edit().putBoolean("open_ended", value).apply()
+
+    /** Spacing between repeating bells in seconds, or 0 when disabled. */
+    var repeatEverySeconds: Int
+        get() = prefs.getInt("repeat_every_seconds", 0)
+        set(value) = prefs.edit().putInt("repeat_every_seconds", value).apply()
+
+    var repeatSoundName: String
+        get() = prefs.getString("repeat_sound", Sound.DEFAULT.name) ?: Sound.DEFAULT.name
+        set(value) = prefs.edit().putString("repeat_sound", value).apply()
+
     // Theme mode: "system", "light", "dark"
     private val _themeMode = MutableStateFlow(
         prefs.getString("theme_mode", "system") ?: "system"

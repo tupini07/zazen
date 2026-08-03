@@ -50,10 +50,20 @@ class TimerService : Service() {
     private var bells = listOf<IntervalBell>()
     private var nextBellIndex = 0
 
+    /** 0 disables repeating bells. */
+    private var repeatEveryMillis = 0L
+    private var nextRepeatAtMillis = 0L
+    private var openEnded = false
+
+    /** Guards against the session being ended twice while teardown is in flight. */
+    private var finishing = false
+
     private val tickRunnable = object : Runnable {
         override fun run() {
             tick()
-            handler.postDelayed(this, TICK_INTERVAL_MS)
+            // tick() may have ended the session. Re-arming here would let a
+            // finished timer fire again before the async teardown completes.
+            if (!finishing) handler.postDelayed(this, TICK_INTERVAL_MS)
         }
     }
 
@@ -123,47 +133,85 @@ class TimerService : Service() {
         currentConfig = config
         _vibrateOnly.value = config.vibrateOnly
         totalDurationMillis = config.durationMillis
+        openEnded = config.isOpenEnded
         bells = config.bells.sortedBy { it.triggerAtMillis }
         nextBellIndex = 0
+        repeatEveryMillis = config.repeatEveryMillis.coerceAtLeast(0)
+        // First repeat lands one full interval in, not at t=0
+        nextRepeatAtMillis = repeatEveryMillis
         accumulatedPauseMillis = 0
+        finishing = false
         startedAtRealtime = SystemClock.elapsedRealtime()
 
         // Preload all bell sounds + the end sound
         bells.forEach { soundPlayer.preload(it.soundResId) }
         soundPlayer.preload(config.endSoundResId)
+        if (repeatEveryMillis > 0) soundPlayer.preload(config.repeatSoundResId)
 
         if (config.dndEnabled) enableDnd()
 
-        startForeground(NOTIFICATION_ID, buildNotification(totalDurationMillis))
+        startForeground(NOTIFICATION_ID, buildNotification(if (openEnded) 0 else totalDurationMillis))
         handler.post(tickRunnable)
-        _timerState.value = TimerState.Running(totalDurationMillis, totalDurationMillis)
+        _timerState.value = if (openEnded) {
+            TimerState.Running(remainingMillis = 0, totalMillis = 0, elapsedMillis = 0)
+        } else {
+            TimerState.Running(totalDurationMillis, totalDurationMillis, elapsedMillis = 0)
+        }
     }
 
     private fun pauseTimer() {
         if (_timerState.value !is TimerState.Running) return
         pausedAtRealtime = SystemClock.elapsedRealtime()
         handler.removeCallbacks(tickRunnable)
-        val remaining = computeRemainingMillis()
-        _timerState.value = TimerState.Paused(remaining, totalDurationMillis)
-        updateNotification(remaining)
+        val elapsed = computeElapsedMillis()
+        val remaining = if (openEnded) 0 else computeRemainingMillis()
+        _timerState.value = TimerState.Paused(
+            remainingMillis = remaining,
+            totalMillis = if (openEnded) 0 else totalDurationMillis,
+            elapsedMillis = elapsed,
+        )
+        updateNotification(if (openEnded) elapsed else remaining)
     }
 
     private fun resumeTimer() {
         if (_timerState.value !is TimerState.Paused) return
         accumulatedPauseMillis += SystemClock.elapsedRealtime() - pausedAtRealtime
         handler.post(tickRunnable)
-        val remaining = computeRemainingMillis()
-        _timerState.value = TimerState.Running(remaining, totalDurationMillis)
+        val elapsed = computeElapsedMillis()
+        _timerState.value = TimerState.Running(
+            remainingMillis = if (openEnded) 0 else computeRemainingMillis(),
+            totalMillis = if (openEnded) 0 else totalDurationMillis,
+            elapsedMillis = elapsed,
+        )
     }
 
     private fun stopTimer() {
+        if (finishing) return
+        finishing = true
         handler.removeCallbacks(tickRunnable)
+        // Stopping while paused: the in-progress pause hasn't been folded into
+        // accumulatedPauseMillis yet, so settle it first or the time spent
+        // paused gets logged as sitting time.
+        if (_timerState.value is TimerState.Paused) {
+            accumulatedPauseMillis += SystemClock.elapsedRealtime() - pausedAtRealtime
+        }
         val elapsed = computeElapsedMillis()
+        val wasOpenEnded = openEnded
+
+        // An open-ended sit has no scheduled end, so stopping *is* how it ends —
+        // ring the closing bell and record it as a complete sit.
+        if (wasOpenEnded) playEndSound()
+
         serviceScope.launch {
             val sessionId = withContext(NonCancellable) {
-                saveSession(elapsed, completed = false)
+                saveSession(elapsed, completed = wasOpenEnded)
             }
-            _timerState.value = TimerState.Finished(sessionId = sessionId, completed = false, elapsedMillis = elapsed)
+            _timerState.value = TimerState.Finished(
+                sessionId = sessionId,
+                completed = wasOpenEnded,
+                elapsedMillis = elapsed,
+                openEnded = wasOpenEnded,
+            )
             currentConfig = null
             restoreDnd()
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -173,10 +221,10 @@ class TimerService : Service() {
 
     private fun tick() {
         val elapsed = computeElapsedMillis()
-        val remaining = (totalDurationMillis - elapsed).coerceAtLeast(0)
+        val remaining = if (openEnded) 0 else (totalDurationMillis - elapsed).coerceAtLeast(0)
         val volume = currentConfig?.bellVolume ?: 1f
 
-        // Fire any bells whose trigger time has passed
+        // Fire any one-shot bells whose trigger time has passed
         while (nextBellIndex < bells.size && bells[nextBellIndex].triggerAtMillis <= elapsed) {
             val bell = bells[nextBellIndex]
             val useVibrate = bell.vibrateOnly || _vibrateOnly.value
@@ -184,23 +232,48 @@ class TimerService : Service() {
             nextBellIndex++
         }
 
-        if (remaining <= 0) {
+        // Fire repeating bells. If the device slept through several intervals we
+        // ring once and fast-forward to the next boundary, rather than firing a
+        // burst of overlapping bells for every interval that was missed.
+        if (repeatEveryMillis > 0 && nextRepeatAtMillis <= elapsed) {
+            val collidesWithEnd = !openEnded && nextRepeatAtMillis >= totalDurationMillis
+            if (!collidesWithEnd) {
+                if (_vibrateOnly.value) {
+                    soundPlayer.vibrate()
+                } else {
+                    soundPlayer.playFull(currentConfig?.repeatSoundResId ?: R.raw.bell, volume)
+                }
+            }
+            val intervalsMissed = (elapsed - nextRepeatAtMillis) / repeatEveryMillis + 1
+            nextRepeatAtMillis += intervalsMissed * repeatEveryMillis
+        }
+
+        if (!openEnded && remaining <= 0) {
             onTimerFinished()
         } else {
-            _timerState.value = TimerState.Running(remaining, totalDurationMillis)
-            updateNotification(remaining)
+            _timerState.value = TimerState.Running(
+                remainingMillis = remaining,
+                totalMillis = if (openEnded) 0 else totalDurationMillis,
+                elapsedMillis = elapsed,
+            )
+            updateNotification(if (openEnded) elapsed else remaining)
         }
     }
 
-    private fun onTimerFinished() {
-        handler.removeCallbacks(tickRunnable)
+    private fun playEndSound() {
         val config = currentConfig
-
         if (_vibrateOnly.value) {
             soundPlayer.vibrate(strong = true)
         } else {
             soundPlayer.playFull(config?.endSoundResId ?: R.raw.bell, config?.bellVolume ?: 1f)
         }
+    }
+
+    private fun onTimerFinished() {
+        if (finishing) return
+        finishing = true
+        handler.removeCallbacks(tickRunnable)
+        playEndSound()
 
         _timerState.value = TimerState.Finished(sessionId = 0, completed = true, elapsedMillis = totalDurationMillis)
         serviceScope.launch {
@@ -266,7 +339,7 @@ class TimerService : Service() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    private fun buildNotification(remainingMillis: Long): Notification {
+    private fun buildNotification(displayMillis: Long): Notification {
         val contentIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java),
@@ -294,7 +367,7 @@ class TimerService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Zazen")
-            .setContentText("Meditating — ${formatTime(remainingMillis)}")
+            .setContentText("Meditating — ${formatTime(displayMillis)}")
             .setContentIntent(contentIntent)
             .addAction(pauseAction)
             .addAction(stopAction)
@@ -303,15 +376,17 @@ class TimerService : Service() {
             .build()
     }
 
-    private fun updateNotification(remainingMillis: Long) {
+    private fun updateNotification(displayMillis: Long) {
         getSystemService(NotificationManager::class.java)
-            .notify(NOTIFICATION_ID, buildNotification(remainingMillis))
+            .notify(NOTIFICATION_ID, buildNotification(displayMillis))
     }
 
     private fun formatTime(millis: Long): String {
         val totalSeconds = millis / 1000
-        val minutes = totalSeconds / 60
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
-        return "%02d:%02d".format(minutes, seconds)
+        return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds)
+        else "%02d:%02d".format(minutes, seconds)
     }
 }

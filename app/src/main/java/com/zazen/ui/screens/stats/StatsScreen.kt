@@ -373,7 +373,7 @@ private fun SelectableSessionItem(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    if (session.completed) "Completed" else "Stopped early",
+                    sessionStatusLabel(session),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -423,7 +423,7 @@ private fun SessionItem(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    if (session.completed) "Completed" else "Stopped early",
+                    sessionStatusLabel(session),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -497,6 +497,13 @@ private fun formatMinutes(millis: Long): String {
 private val dateFormat = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
 
 private fun formatDate(epochMillis: Long): String = dateFormat.format(Date(epochMillis))
+
+private fun sessionStatusLabel(session: MeditationSession): String = when {
+    // Open-ended sits have no target to fall short of — they end when you end them.
+    session.isOpenEnded -> "Open sit"
+    session.completed -> "Completed"
+    else -> "Stopped early"
+}
 
 private fun formatSessionsForClipboard(sessions: List<MeditationSession>): String {
     // Oldest first reads more naturally for sharing chronologically
