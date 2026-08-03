@@ -1,0 +1,7 @@
+Open-ended sits: let the timer count up and end the sit when you decide, closing bell included.
+
+Repeating bell: ring every few minutes through a timed or open-ended sit.
+
+Accessibility: full TalkBack support, higher contrast text, larger touch targets, and layouts that hold up at large font sizes.
+
+Fixes: stopping a paused sit no longer counts the pause as sitting time; waking from doze no longer stacks up bells; a session can no longer be recorded twice.

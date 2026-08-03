@@ -18,8 +18,8 @@ android {
 
         // Keep these literal: F-Droid parses them straight out of this file to
         // detect new releases. Scheme is major * 10000 + minor * 100 + patch.
-        versionCode = 10406
-        versionName = "1.4.6"
+        versionCode = 10500
+        versionName = "1.5.0"
     }
 
     signingConfigs {
