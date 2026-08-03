@@ -1,0 +1,7 @@
+Packaging release, prepared for F-Droid.
+
+* Version numbers are now declared in the build file and tied to git tags,
+  rather than generated at build time.
+* Release tags are kept permanently so past versions stay reproducible.
+
+No user-facing changes to the app itself.

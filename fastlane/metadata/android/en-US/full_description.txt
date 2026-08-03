@@ -1,0 +1,27 @@
+Zazen is a modern, minimal meditation timer for Android. It stays out of the
+way so you can sit: no account, no network access, no tracking, no ads.
+
+Features:
+
+* Clean timer — a full-screen countdown with circular progress.
+* Open-ended sits — no duration and no countdown: the timer simply counts up,
+  and the sit ends when you decide it does, closing bell included.
+* Interval bells — schedule bells at specific points within a session, for
+  example a bell at 5 minutes for a body scan and a different one at 15
+  minutes for breath work.
+* Repeating bell — ring every few minutes for the whole sit, in a timed
+  session or an open-ended one.
+* Silent mode — a vibrate-only option so you can meditate near sleeping kids.
+* Session tracking — review your meditation history and total time sat.
+* Beautiful sounds — Tibetan bowls, bells and gongs.
+* Backup and restore — export your presets, sessions and preferences to a
+  file, and import them again on another device.
+
+Privacy:
+
+Zazen requests no internet permission at all, so it is incapable of sending
+your data anywhere. Everything stays in local storage on your device.
+
+Zazen is free software released under the MIT licence. The bundled sounds come
+from the BodhiTimer project and the nyxkn/meditation collection; individual
+attributions are listed in the NOTICES file in the source repository.
