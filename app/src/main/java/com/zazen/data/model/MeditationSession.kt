@@ -12,7 +12,7 @@ data class MeditationSession(
     val durationMillis: Long,
     /** Actual elapsed meditation time in millis */
     val completedMillis: Long,
-    /** Whether the timer ran to completion */
+    /** Whether the planned time was reached (or an open-ended sit was stopped). */
     val completed: Boolean,
     /** Optional user notes / reflections */
     val notes: String = "",

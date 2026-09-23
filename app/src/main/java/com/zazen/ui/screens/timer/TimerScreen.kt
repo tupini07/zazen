@@ -249,6 +249,7 @@ private fun ActiveTimerContent(
     onToggleVibrateOnly: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
+        val overtime = !openEnded && elapsed >= total
         // Sound/vibrate toggle in top-right corner
         IconButton(
             onClick = onToggleVibrateOnly,
@@ -280,17 +281,26 @@ private fun ActiveTimerContent(
                 TimerCircle(
                     // An open-ended sit has no endpoint, so there's no arc to fill —
                     // show the bare track instead of a ring draining toward zero.
-                    progress = if (openEnded) 0f else if (total > 0) remaining.toFloat() / total else 0f,
-                    bellFractions = if (openEnded) emptyList() else bellFractions,
+                    progress = if (openEnded || overtime) 0f else if (total > 0) remaining.toFloat() / total else 0f,
+                    bellFractions = if (openEnded || overtime) emptyList() else bellFractions,
                     modifier = Modifier
                         .size(280.dp)
                         .clearAndSetSemantics { },
                 )
                 Text(
-                    text = formatTime(if (openEnded) elapsed else remaining),
+                    text = formatTime(if (openEnded) elapsed else if (overtime) elapsed - total else remaining),
                     style = MaterialTheme.typography.displayLarge,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.clearAndSetSemantics { },
+                )
+            }
+
+            if (overtime) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Extra time · Stop when ready",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 

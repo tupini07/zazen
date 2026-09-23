@@ -4,7 +4,8 @@ A modern, minimal meditation timer for Android.
 
 ## Features
 
-- **Clean timer** — full-screen countdown with circular progress
+- **Clean timer** — full-screen countdown with circular progress; after the
+  closing bell, extra sitting time counts up until you stop and is saved with the session
 - **Open-ended sits** — a count-up mode with no set duration; the closing bell
   rings when you decide you're done
 - **Interval bells** — schedule bells at specific times within a session
