@@ -13,6 +13,7 @@ A modern, minimal meditation timer for Android.
 - **Repeating bells** — ring at a fixed interval, in both timed and open sits
 - **Silent mode** — vibrate-only option so you can meditate near sleeping kids
 - **Session tracking** — view your meditation history and total time
+- **Presets** — save a setup by name, then overwrite the loaded preset or save a new copy
 - **Beautiful sounds** — Tibetan bowls, bells, and gongs
 
 ## Building

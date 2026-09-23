@@ -11,6 +11,7 @@ import com.zazen.service.TimerManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -68,6 +69,8 @@ class SetupViewModel @Inject constructor(
 
     val presets = presetRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val selectedPreset: StateFlow<Preset?> = presetRepository.selectedPreset
 
     val themeMode: StateFlow<String> = prefs.themeModeFlow
 
@@ -177,6 +180,7 @@ class SetupViewModel @Inject constructor(
     // --- Presets ---
 
     fun loadPreset(preset: Preset) {
+        presetRepository.select(preset)
         setOpenEnded(preset.isOpenEnded)
         if (!preset.isOpenEnded) setDurationSeconds(preset.durationSeconds)
         _vibrateOnly.value = preset.vibrateOnly
@@ -195,21 +199,61 @@ class SetupViewModel @Inject constructor(
         persistBells()
     }
 
-    fun savePreset(name: String) {
+    private fun currentPreset(name: String): Preset =
+        Preset.fromSetupState(
+            name = name,
+            durationSeconds = if (_openEnded.value) 0 else _durationSeconds.value,
+            vibrateOnly = _vibrateOnly.value,
+            bellVolume = _bellVolume.value,
+            endSound = _endSound.value,
+            dndEnabled = _dndEnabled.value,
+            intervalBells = _bells.value,
+            repeatEverySeconds = _repeatEverySeconds.value,
+            repeatSound = _repeatSound.value,
+        )
+
+    fun saveNewPreset(name: String, onResult: (String?) -> Unit) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) {
+            onResult("Enter a preset name")
+            return
+        }
+        if (presets.value.any { it.name.equals(trimmed, ignoreCase = true) }) {
+            onResult("A preset with that name already exists")
+            return
+        }
         viewModelScope.launch {
-            presetRepository.save(
-                Preset.fromSetupState(
-                    name = name,
-                    durationSeconds = if (_openEnded.value) 0 else _durationSeconds.value,
-                    vibrateOnly = _vibrateOnly.value,
-                    bellVolume = _bellVolume.value,
-                    endSound = _endSound.value,
-                    dndEnabled = _dndEnabled.value,
-                    intervalBells = _bells.value,
-                    repeatEverySeconds = _repeatEverySeconds.value,
-                    repeatSound = _repeatSound.value,
-                )
-            )
+            try {
+                val preset = currentPreset(trimmed)
+                presetRepository.save(preset)
+                onResult(null)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onResult("Could not save preset: ${e.localizedMessage ?: "Unknown error"}")
+            }
+        }
+    }
+
+    fun overwriteSelectedPreset(onResult: (String?) -> Unit) {
+        val selected = selectedPreset.value
+        if (selected == null) {
+            onResult("No preset selected")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val updated = currentPreset(selected.name).copy(id = selected.id)
+                if (presetRepository.update(updated) != 1) {
+                    onResult("Preset no longer exists")
+                    return@launch
+                }
+                onResult(null)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onResult("Could not overwrite preset: ${e.localizedMessage ?: "Unknown error"}")
+            }
         }
     }
 

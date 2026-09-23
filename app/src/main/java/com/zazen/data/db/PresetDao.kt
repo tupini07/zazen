@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.zazen.data.model.Preset
 import kotlinx.coroutines.flow.Flow
 
@@ -15,6 +16,9 @@ interface PresetDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(presets: List<Preset>)
+
+    @Update
+    suspend fun update(preset: Preset): Int
 
     @Delete
     suspend fun delete(preset: Preset)

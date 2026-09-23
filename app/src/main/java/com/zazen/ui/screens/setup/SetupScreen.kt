@@ -122,11 +122,13 @@ fun SetupScreen(
     val screenAlwaysOn by viewModel.screenAlwaysOn.collectAsState()
     val bells by viewModel.bells.collectAsState()
     val presets by viewModel.presets.collectAsState()
+    val selectedPreset by viewModel.selectedPreset.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
 
     var showAddBellDialog by remember { mutableStateOf(false) }
     var editingBellIndex by remember { mutableIntStateOf(-1) }
     var showSavePresetDialog by remember { mutableStateOf(false) }
+    var showNewPresetDialog by remember { mutableStateOf(false) }
     var showDurationEditor by remember { mutableStateOf(false) }
     var showRepeatEditor by remember { mutableStateOf(false) }
     var showVolumeWarning by remember { mutableStateOf(false) }
@@ -203,7 +205,7 @@ fun SetupScreen(
                     presets.forEach { preset ->
                         val deleteLabel = stringResource(R.string.preset_cd_delete, preset.name)
                         FilterChip(
-                            selected = false,
+                            selected = selectedPreset?.id == preset.id,
                             onClick = { viewModel.loadPreset(preset) },
                             // Deleting via the tiny trailing icon is impractical with a
                             // screen reader, so expose it as a custom action on the chip.
@@ -549,8 +551,11 @@ fun SetupScreen(
 
             // --- Save preset ---
             AssistChip(
-                onClick = { showSavePresetDialog = true },
-                label = { Text(stringResource(R.string.preset_save_chip)) },
+                onClick = {
+                    if (selectedPreset == null) showNewPresetDialog = true
+                    else showSavePresetDialog = true
+                },
+                label = { Text(if (selectedPreset == null) stringResource(R.string.preset_save_chip) else "Save preset") },
                 leadingIcon = { Icon(Icons.Default.Save, null, modifier = Modifier.size(18.dp)) },
             )
 
@@ -624,13 +629,57 @@ fun SetupScreen(
         )
     }
 
-    if (showSavePresetDialog) {
-        SavePresetDialog(
-            onSave = { name ->
-                viewModel.savePreset(name)
-                showSavePresetDialog = false
+    val presetToSave = selectedPreset
+    if (showSavePresetDialog && presetToSave != null) {
+        var saving by remember { mutableStateOf(false) }
+        var error by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { if (!saving) showSavePresetDialog = false },
+            title = { Text("Save \"${presetToSave.name}\"?") },
+            text = {
+                Column {
+                    Text("Overwrite this preset with your current settings, or save a new one.")
+                    error?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error)
+                    }
+                }
             },
-            onDismiss = { showSavePresetDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        saving = true
+                        viewModel.overwriteSelectedPreset { message ->
+                            saving = false
+                            if (message == null) showSavePresetDialog = false else error = message
+                        }
+                    },
+                    enabled = !saving,
+                ) { Text("Overwrite") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            showSavePresetDialog = false
+                            showNewPresetDialog = true
+                        },
+                        enabled = !saving,
+                    ) { Text("Save as new") }
+                    TextButton(
+                        onClick = { showSavePresetDialog = false },
+                        enabled = !saving,
+                    ) { Text("Cancel") }
+                }
+            },
+        )
+    }
+
+    if (showNewPresetDialog) {
+        SavePresetDialog(
+            onSave = { name, onResult ->
+                viewModel.saveNewPreset(name, onResult)
+            },
+            onDismiss = { showNewPresetDialog = false },
         )
     }
 
@@ -1014,31 +1063,46 @@ private fun RepeatBellDialog(
 
 @Composable
 private fun SavePresetDialog(
-    onSave: (String) -> Unit,
+    onSave: (String, (String?) -> Unit) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.preset_save_title)) },
+        onDismissRequest = { if (!saving) onDismiss() },
+        title = { Text("Save new preset") },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text(stringResource(R.string.preset_name_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; error = null },
+                    label = { Text(stringResource(R.string.preset_name_label)) },
+                    singleLine = true,
+                    isError = error != null,
+                    enabled = !saving,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
+            }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(name.trim()) },
-                enabled = name.isNotBlank(),
-            ) { Text(stringResource(R.string.action_save)) }
+                onClick = {
+                    saving = true
+                    onSave(name.trim()) { message ->
+                        saving = false
+                        if (message == null) onDismiss() else error = message
+                    }
+                },
+                enabled = !saving && name.isNotBlank(),
+            ) { Text("Save new") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+            TextButton(onClick = onDismiss, enabled = !saving) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
