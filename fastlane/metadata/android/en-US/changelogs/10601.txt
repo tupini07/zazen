@@ -1,0 +1,5 @@
+Timed sessions now continue counting after the closing bell, so you can sit longer without starting a new session.
+
+When saving a preset, choose to overwrite the existing one or save a new copy.
+
+This release also removes APK dependency metadata that F-Droid cannot accept.
